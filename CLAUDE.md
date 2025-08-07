@@ -72,7 +72,7 @@ ClaudeMachineLauncher/
 - **No user endpoint**: `/v1/user` returns 404, user info not available via API
 - **App creation**: Requires organization slug, use "personal" as fallback
 - **Error handling**: 404 responses indicate missing apps/machines, not API errors
-- **Duplicate logging**: Combine publishers can trigger logging twice in reactive chains
+- **API Client**: Refactored to use generic `performRequest` method, eliminating code duplication and potential logging issues
 
 ### State Management
 - ViewModels use `@Published` properties with Combine

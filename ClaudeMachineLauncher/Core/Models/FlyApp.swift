@@ -38,3 +38,13 @@ struct FlyAppCreateRequest: Codable {
         case orgSlug = "org_slug"  
     }
 }
+
+struct FlyAppCreateResponse: Codable {
+    let id: String
+    let createdAt: Int64
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case createdAt = "created_at"
+    }
+}
