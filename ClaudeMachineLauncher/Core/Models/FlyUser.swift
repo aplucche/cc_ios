@@ -13,7 +13,7 @@ struct FlyUser: Codable {
 }
 
 struct FlyOrganization: Codable {
-    let id: String
+    let id: String?
     let name: String
     let slug: String
 }

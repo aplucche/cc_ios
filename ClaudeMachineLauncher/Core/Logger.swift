@@ -19,10 +19,7 @@ struct Logger {
         let timestamp = DateFormatter.logFormatter.string(from: Date())
         let logMessage = "[\(timestamp)] \(category.rawValue): \(message)"
         
-        // Print to Xcode console
-        print(logMessage)
-        
-        // Log to system log
+        // Log to system log (Xcode will display this)
         os_log("%{public}@", log: osLog(for: category), type: .default, logMessage)
         
         // Store in memory for potential in-app viewing
