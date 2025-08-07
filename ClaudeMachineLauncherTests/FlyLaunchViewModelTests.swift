@@ -5,6 +5,7 @@ import Combine
 class MockFlyLaunchService: FlyLaunchServiceProtocol {
     var shouldSucceed = true
     var mockMachine: FlyMachine?
+    var mockApp: FlyApp?
     
     func launchMachine(config: FlyLaunchConfig, token: String) -> AnyPublisher<FlyMachine, APIError> {
         if shouldSucceed, let machine = mockMachine {
@@ -24,6 +25,17 @@ class MockFlyLaunchService: FlyLaunchServiceProtocol {
                 .eraseToAnyPublisher()
         } else {
             return Fail(error: APIError.serverError(500))
+                .eraseToAnyPublisher()
+        }
+    }
+    
+    func ensureAppExists(appName: String, token: String) -> AnyPublisher<FlyApp, APIError> {
+        if shouldSucceed, let app = mockApp {
+            return Just(app)
+                .setFailureType(to: APIError.self)
+                .eraseToAnyPublisher()
+        } else {
+            return Fail(error: APIError.serverError(404))
                 .eraseToAnyPublisher()
         }
     }

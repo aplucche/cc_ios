@@ -15,6 +15,10 @@ struct FlyLaunchView: View {
                         machineStatusSection
                     }
                     
+                    if !viewModel.statusMessage.isEmpty {
+                        statusSection(viewModel.statusMessage)
+                    }
+                    
                     if let errorMessage = viewModel.errorMessage {
                         errorSection(errorMessage)
                     }
@@ -67,7 +71,7 @@ struct FlyLaunchView: View {
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                             .scaleEffect(0.8)
                     }
-                    Text(viewModel.isLoading ? "Launching..." : "Launch Machine")
+                    Text(viewModel.isLoading ? (viewModel.statusMessage.isEmpty ? "Launching..." : viewModel.statusMessage) : "Launch Machine")
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -107,6 +111,19 @@ struct FlyLaunchView: View {
                 .padding(.top, 8)
             }
             .padding(.vertical, 8)
+        }
+    }
+    
+    private func statusSection(_ message: String) -> some View {
+        GroupBox {
+            HStack {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .blue))
+                    .scaleEffect(0.8)
+                Text(message)
+                    .foregroundColor(.blue)
+                Spacer()
+            }
         }
     }
     

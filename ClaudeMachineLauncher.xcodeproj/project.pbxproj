@@ -11,6 +11,7 @@
 		3A221FD9CC3F600A4A9CCE17 /* FlyLaunchConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3861650CA443E59EAD880AB1 /* FlyLaunchConfig.swift */; };
 		47BD393A449121495F28F4D4 /* FlyLaunchViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BC8971F0EB0DB730D3B3FA /* FlyLaunchViewModelTests.swift */; };
 		4B2F9B3762A432F5F72277B5 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 960F5F220D5470503D0DBC4B /* Logger.swift */; };
+		5FC33C0CB1A90B453FB2F285 /* FlyUser.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFE54414AADC4207371EDC11 /* FlyUser.swift */; };
 		90A18BCBE18F3641C59A3839 /* FlyMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41EA7BF93547B4601DF4D41B /* FlyMachine.swift */; };
 		A6B26ABD57AD427C1B033258 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AC639E1F68BFC963D30484F2 /* SwiftUI.framework */; };
 		B2C731AF69D4C724E280127D /* FlyLaunchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAA6A76A0DFEA5D6434EF813 /* FlyLaunchViewModel.swift */; };
@@ -18,6 +19,7 @@
 		B6F64F103C5F39D2405E087A /* FlyLaunchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 625DDE59A4CC8262103F7977 /* FlyLaunchService.swift */; };
 		BDF37BE430D83EF588D4D05F /* FlyLaunchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2CDF5EFF3D0C92F728CA7B /* FlyLaunchView.swift */; };
 		D8246495ACBC10F7D6EBF96D /* Combine.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5E1FE530C49D95A84EED851A /* Combine.framework */; };
+		D9AA7A7066B23346D9A8070B /* FlyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F5FB52745391B0C94B441F6 /* FlyApp.swift */; };
 		E3EC0B1E57152C0C1ED3BF3E /* FlyAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A646F92F1DE96B79D77833 /* FlyAPIClient.swift */; };
 /* End PBXBuildFile section */
 
@@ -34,6 +36,7 @@
 /* Begin PBXFileReference section */
 		2FE24306F36779C14C43F594 /* FlyLaunchConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlyLaunchConfigTests.swift; sourceTree = "<group>"; };
 		3861650CA443E59EAD880AB1 /* FlyLaunchConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlyLaunchConfig.swift; sourceTree = "<group>"; };
+		3F5FB52745391B0C94B441F6 /* FlyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlyApp.swift; sourceTree = "<group>"; };
 		41EA7BF93547B4601DF4D41B /* FlyMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlyMachine.swift; sourceTree = "<group>"; };
 		52A646F92F1DE96B79D77833 /* FlyAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlyAPIClient.swift; sourceTree = "<group>"; };
 		5E1FE530C49D95A84EED851A /* Combine.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Combine.framework; path = System/Library/Frameworks/Combine.framework; sourceTree = SDKROOT; };
@@ -44,6 +47,7 @@
 		AA2CDF5EFF3D0C92F728CA7B /* FlyLaunchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlyLaunchView.swift; sourceTree = "<group>"; };
 		AC639E1F68BFC963D30484F2 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		CAA6A76A0DFEA5D6434EF813 /* FlyLaunchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlyLaunchViewModel.swift; sourceTree = "<group>"; };
+		CFE54414AADC4207371EDC11 /* FlyUser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlyUser.swift; sourceTree = "<group>"; };
 		D43A9D7BC73836B5B606D788 /* ClaudeMachineLauncher.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ClaudeMachineLauncher.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E0BC8971F0EB0DB730D3B3FA /* FlyLaunchViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlyLaunchViewModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -129,8 +133,10 @@
 		904DE6B78167A5F17A4D1370 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				3F5FB52745391B0C94B441F6 /* FlyApp.swift */,
 				3861650CA443E59EAD880AB1 /* FlyLaunchConfig.swift */,
 				41EA7BF93547B4601DF4D41B /* FlyMachine.swift */,
+				CFE54414AADC4207371EDC11 /* FlyUser.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -220,11 +226,13 @@
 			files = (
 				0C99BA7E5AC29AABC789EB9E /* App.swift in Sources */,
 				E3EC0B1E57152C0C1ED3BF3E /* FlyAPIClient.swift in Sources */,
+				D9AA7A7066B23346D9A8070B /* FlyApp.swift in Sources */,
 				3A221FD9CC3F600A4A9CCE17 /* FlyLaunchConfig.swift in Sources */,
 				B6F64F103C5F39D2405E087A /* FlyLaunchService.swift in Sources */,
 				BDF37BE430D83EF588D4D05F /* FlyLaunchView.swift in Sources */,
 				B2C731AF69D4C724E280127D /* FlyLaunchViewModel.swift in Sources */,
 				90A18BCBE18F3641C59A3839 /* FlyMachine.swift in Sources */,
+				5FC33C0CB1A90B453FB2F285 /* FlyUser.swift in Sources */,
 				4B2F9B3762A432F5F72277B5 /* Logger.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

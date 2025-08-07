@@ -61,10 +61,18 @@ ClaudeMachineLauncher/
 ## Key Implementation Details
 
 ### API Integration
-- Use `https://api.machines.dev` for direct Fly.io API access
+- Use `https://api.machines.dev/v1` for direct Fly.io API access
 - POST `/apps/{app}/machines` to launch machines
 - GET `/apps/{app}/machines/{machine_id}` to check status
+- GET `/apps/{app}` to check if app exists
+- POST `/apps` to create new apps
 - Include `Authorization: Bearer {fly_api_token}` header
+
+### API Quirks & Known Issues
+- **No user endpoint**: `/v1/user` returns 404, user info not available via API
+- **App creation**: Requires organization slug, use "personal" as fallback
+- **Error handling**: 404 responses indicate missing apps/machines, not API errors
+- **Duplicate logging**: Combine publishers can trigger logging twice in reactive chains
 
 ### State Management
 - ViewModels use `@Published` properties with Combine

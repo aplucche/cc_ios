@@ -12,6 +12,7 @@ class FlyLaunchViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var launchedMachine: FlyMachine?
     @Published var machineStatus: String = ""
+    @Published var statusMessage: String = ""
     
     private let service: FlyLaunchServiceProtocol
     private var cancellables = Set<AnyCancellable>()
@@ -41,11 +42,14 @@ class FlyLaunchViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         
+        statusMessage = "Checking app..."
+        
         service.launchMachine(config: config, token: flyAPIToken)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { [weak self] completion in
                     self?.isLoading = false
+                    self?.statusMessage = ""
                     if case .failure(let error) = completion {
                         Logger.log("Launch failed: \(error.localizedDescription)", category: .ui)
                         self?.errorMessage = error.localizedDescription
@@ -56,6 +60,7 @@ class FlyLaunchViewModel: ObservableObject {
                     self?.launchedMachine = machine
                     self?.machineStatus = machine.state
                     self?.errorMessage = nil
+                    self?.statusMessage = ""
                 }
             )
             .store(in: &cancellables)
@@ -92,5 +97,6 @@ class FlyLaunchViewModel: ObservableObject {
         launchedMachine = nil
         machineStatus = ""
         errorMessage = nil
+        statusMessage = ""
     }
 }
