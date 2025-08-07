@@ -27,6 +27,7 @@ class FlyLaunchService: FlyLaunchServiceProtocol {
                 let request = FlyLaunchRequest(config: config)
                 return self.apiClient.launchMachine(appName: config.appName, request: request, token: token)
             }
+            .share()
             .eraseToAnyPublisher()
     }
     
@@ -54,6 +55,7 @@ class FlyLaunchService: FlyLaunchServiceProtocol {
                     return Fail(error: error).eraseToAnyPublisher()
                 }
             }
+            .share()
             .eraseToAnyPublisher()
     }
     

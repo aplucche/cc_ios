@@ -98,6 +98,7 @@ class FlyAPIClient {
                 Logger.log("\(operationName) network error: \(error)", category: .network)
                 return APIError.invalidResponse
             }
+            .share()
             .eraseToAnyPublisher()
     }
     
@@ -151,6 +152,7 @@ class FlyAPIClient {
                 // Fetch the full app details using the app name
                 return self.getApp(appName: request.appName, token: token)
             }
+            .share()
             .eraseToAnyPublisher()
         } catch {
             Logger.log("Failed to encode app creation request: \(error)", category: .network)
