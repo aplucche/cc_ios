@@ -7,17 +7,12 @@ struct FlyApp: Codable {
     let organization: FlyOrganization
 }
 
-struct FlyRelease: Codable {
-    let id: String
-    let version: Int
-    let stable: Bool
-    let inProgress: Bool
-    
-    enum CodingKeys: String, CodingKey {
-        case id, version, stable
-        case inProgress = "in_progress"
-    }
+struct FlyOrganization: Codable {
+    let id: String?
+    let name: String
+    let slug: String
 }
+
 
 struct FlyAppCreateRequest: Codable {
     let appName: String

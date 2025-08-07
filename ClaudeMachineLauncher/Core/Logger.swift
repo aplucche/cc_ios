@@ -5,11 +5,10 @@ enum LogCategory: String {
     case ui = "UI"
     case network = "Network"
     case system = "System"
-    case agent = "Agent"
 }
 
 struct Logger {
-    private static let subsystem = "com.example.claudemachinelauncher"
+    private static let subsystem = "com.claudemachinelauncher"
     
     private static func osLog(for category: LogCategory) -> OSLog {
         return OSLog(subsystem: subsystem, category: category.rawValue)

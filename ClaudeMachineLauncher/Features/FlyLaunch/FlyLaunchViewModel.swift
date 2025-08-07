@@ -3,15 +3,14 @@ import Combine
 
 class FlyLaunchViewModel: ObservableObject {
     @Published var flyAPIToken: String = ""
-    @Published var appName: String = ""
-    @Published var image: String = "nginx"
+    @Published var appName: String = "claude"
+    @Published var image: String = "python:3.11-slim"
     @Published var region: String = "ord"
     @Published var claudeAPIKey: String = ""
     
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var launchedMachine: FlyMachine?
-    @Published var machineStatus: String = ""
     @Published var statusMessage: String = ""
     
     private let service: FlyLaunchServiceProtocol
@@ -58,7 +57,6 @@ class FlyLaunchViewModel: ObservableObject {
                 receiveValue: { [weak self] machine in
                     Logger.log("Launch succeeded: \(machine.id) in state \(machine.state)", category: .ui)
                     self?.launchedMachine = machine
-                    self?.machineStatus = machine.state
                     self?.errorMessage = nil
                     self?.statusMessage = ""
                 }
@@ -86,7 +84,6 @@ class FlyLaunchViewModel: ObservableObject {
                 receiveValue: { [weak self] updatedMachine in
                     Logger.log("Status updated: \(updatedMachine.state)", category: .ui)
                     self?.launchedMachine = updatedMachine
-                    self?.machineStatus = updatedMachine.state
                 }
             )
             .store(in: &cancellables)
@@ -95,7 +92,6 @@ class FlyLaunchViewModel: ObservableObject {
     func clearMachine() {
         Logger.log("User cleared machine data", category: .ui)
         launchedMachine = nil
-        machineStatus = ""
         errorMessage = nil
         statusMessage = ""
     }

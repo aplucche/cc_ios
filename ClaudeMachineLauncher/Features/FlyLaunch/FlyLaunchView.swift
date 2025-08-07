@@ -37,6 +37,7 @@ struct FlyLaunchView: View {
                 
                 TextField("App Name", text: $viewModel.appName)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .textInputAutocapitalization(.never)
                 
                 TextField("Docker Image", text: $viewModel.image)
                     .textFieldStyle(RoundedBorderTextFieldStyle())

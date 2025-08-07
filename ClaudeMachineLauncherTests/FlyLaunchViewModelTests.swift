@@ -90,7 +90,7 @@ struct FlyLaunchViewModelTests {
         try await Task.sleep(nanoseconds: 100_000_000)
         
         #expect(viewModel.launchedMachine?.id == "test-123")
-        #expect(viewModel.machineStatus == "started")
+        #expect(viewModel.launchedMachine?.state == "started")
         #expect(viewModel.errorMessage == nil)
     }
 }
