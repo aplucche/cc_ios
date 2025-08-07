@@ -1,0 +1,64 @@
+import Foundation
+import os
+
+enum LogCategory: String {
+    case ui = "UI"
+    case network = "Network"
+    case system = "System"
+    case agent = "Agent"
+}
+
+struct Logger {
+    private static let subsystem = "com.example.claudemachinelauncher"
+    
+    private static func osLog(for category: LogCategory) -> OSLog {
+        return OSLog(subsystem: subsystem, category: category.rawValue)
+    }
+    
+    static func log(_ message: String, category: LogCategory) {
+        let timestamp = DateFormatter.logFormatter.string(from: Date())
+        let logMessage = "[\(timestamp)] \(category.rawValue): \(message)"
+        
+        // Print to Xcode console
+        print(logMessage)
+        
+        // Log to system log
+        os_log("%{public}@", log: osLog(for: category), type: .default, logMessage)
+        
+        // Store in memory for potential in-app viewing
+        LogStore.shared.add(logMessage)
+    }
+}
+
+// Optional: Store logs in memory for in-app inspection
+class LogStore: ObservableObject {
+    static let shared = LogStore()
+    
+    @Published private(set) var logs: [String] = []
+    private let maxLogs = 100
+    
+    private init() {}
+    
+    func add(_ message: String) {
+        DispatchQueue.main.async {
+            self.logs.append(message)
+            if self.logs.count > self.maxLogs {
+                self.logs.removeFirst(self.logs.count - self.maxLogs)
+            }
+        }
+    }
+    
+    func clear() {
+        DispatchQueue.main.async {
+            self.logs.removeAll()
+        }
+    }
+}
+
+private extension DateFormatter {
+    static let logFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss.SSS"
+        return formatter
+    }()
+}

@@ -1,0 +1,30 @@
+# Xcode
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
+
+# Build artifacts
+build/
+DerivedData/
+
+# Simulator and device specific
+*.hmap
+*.ipa
+
+# Swift Package Manager
+.swiftpm/
+Packages/
+Package.resolved
+
+# CocoaPods (if used later)
+Pods/
+Podfile.lock
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+
+# macOS
+.DS_Store

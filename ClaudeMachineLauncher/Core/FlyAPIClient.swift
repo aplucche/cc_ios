@@ -32,7 +32,10 @@ class FlyAPIClient {
     private let session = URLSession.shared
     
     func launchMachine(appName: String, request: FlyLaunchRequest, token: String) -> AnyPublisher<FlyMachine, APIError> {
+        Logger.log("Starting machine launch for app: \(appName)", category: .network)
+        
         guard let url = URL(string: "\(baseURL)/apps/\(appName)/machines") else {
+            Logger.log("Invalid URL for app: \(appName)", category: .network)
             return Fail(error: APIError.invalidURL)
                 .eraseToAnyPublisher()
         }
@@ -43,45 +46,40 @@ class FlyAPIClient {
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         do {
-            urlRequest.httpBody = try JSONEncoder().encode(request)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+            urlRequest.httpBody = try encoder.encode(request)
+            
+            if let bodyString = String(data: urlRequest.httpBody!, encoding: .utf8) {
+                Logger.log("POST \(url) with body: \(bodyString)", category: .network)
+            }
         } catch {
+            Logger.log("Failed to encode request: \(error)", category: .network)
             return Fail(error: APIError.decodingError(error))
                 .eraseToAnyPublisher()
         }
         
         return session.dataTaskPublisher(for: urlRequest)
-            .map(\.data)
-            .decode(type: FlyMachine.self, decoder: JSONDecoder())
-            .mapError { error -> APIError in
-                if error is DecodingError {
-                    return APIError.decodingError(error)
-                }
-                return APIError.invalidResponse
-            }
-            .eraseToAnyPublisher()
-    }
-    
-    func getMachine(appName: String, machineId: String, token: String) -> AnyPublisher<FlyMachine, APIError> {
-        guard let url = URL(string: "\(baseURL)/apps/\(appName)/machines/\(machineId)") else {
-            return Fail(error: APIError.invalidURL)
-                .eraseToAnyPublisher()
-        }
-        
-        var urlRequest = URLRequest(url: url)
-        urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        
-        return session.dataTaskPublisher(for: urlRequest)
             .tryMap { data, response -> Data in
                 guard let httpResponse = response as? HTTPURLResponse else {
+                    Logger.log("Invalid HTTP response", category: .network)
                     throw APIError.invalidResponse
+                }
+                
+                Logger.log("Response status: \(httpResponse.statusCode)", category: .network)
+                
+                if let responseString = String(data: data, encoding: .utf8) {
+                    Logger.log("Response body: \(responseString)", category: .network)
                 }
                 
                 switch httpResponse.statusCode {
                 case 200...299:
                     return data
                 case 401:
+                    Logger.log("Unauthorized - check API token", category: .network)
                     throw APIError.unauthorized
                 default:
+                    Logger.log("Server error: \(httpResponse.statusCode)", category: .network)
                     throw APIError.serverError(httpResponse.statusCode)
                 }
             }
@@ -91,8 +89,63 @@ class FlyAPIClient {
                     return apiError
                 }
                 if error is DecodingError {
+                    Logger.log("Decoding error: \(error)", category: .network)
                     return APIError.decodingError(error)
                 }
+                Logger.log("Network error: \(error)", category: .network)
+                return APIError.invalidResponse
+            }
+            .eraseToAnyPublisher()
+    }
+    
+    func getMachine(appName: String, machineId: String, token: String) -> AnyPublisher<FlyMachine, APIError> {
+        Logger.log("Getting machine status: \(machineId) for app: \(appName)", category: .network)
+        
+        guard let url = URL(string: "\(baseURL)/apps/\(appName)/machines/\(machineId)") else {
+            Logger.log("Invalid URL for machine: \(machineId)", category: .network)
+            return Fail(error: APIError.invalidURL)
+                .eraseToAnyPublisher()
+        }
+        
+        var urlRequest = URLRequest(url: url)
+        urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        Logger.log("GET \(url)", category: .network)
+        
+        return session.dataTaskPublisher(for: urlRequest)
+            .tryMap { data, response -> Data in
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    Logger.log("Invalid HTTP response for machine status", category: .network)
+                    throw APIError.invalidResponse
+                }
+                
+                Logger.log("Status response: \(httpResponse.statusCode)", category: .network)
+                
+                if let responseString = String(data: data, encoding: .utf8) {
+                    Logger.log("Status response body: \(responseString)", category: .network)
+                }
+                
+                switch httpResponse.statusCode {
+                case 200...299:
+                    return data
+                case 401:
+                    Logger.log("Unauthorized for machine status", category: .network)
+                    throw APIError.unauthorized
+                default:
+                    Logger.log("Status server error: \(httpResponse.statusCode)", category: .network)
+                    throw APIError.serverError(httpResponse.statusCode)
+                }
+            }
+            .decode(type: FlyMachine.self, decoder: JSONDecoder())
+            .mapError { error -> APIError in
+                if let apiError = error as? APIError {
+                    return apiError
+                }
+                if error is DecodingError {
+                    Logger.log("Status decoding error: \(error)", category: .network)
+                    return APIError.decodingError(error)
+                }
+                Logger.log("Status network error: \(error)", category: .network)
                 return APIError.invalidResponse
             }
             .eraseToAnyPublisher()
