@@ -4,7 +4,7 @@ import SwiftUI
 struct ClaudeMachineLauncherApp: App {
     var body: some Scene {
         WindowGroup {
-            FlyLaunchView()
+            MainTabView()
         }
     }
 }

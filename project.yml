@@ -1,5 +1,10 @@
 name: ClaudeMachineLauncher
 
+packages:
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm
+    from: "1.0.0"
+
 targets:
   ClaudeMachineLauncher:
     type: application
@@ -14,6 +19,8 @@ targets:
     dependencies:
       - sdk: SwiftUI.framework
       - sdk: Combine.framework
+      - package: SwiftTerm
+        product: SwiftTerm
 
   ClaudeMachineLauncherTests:
     type: bundle.unit-test

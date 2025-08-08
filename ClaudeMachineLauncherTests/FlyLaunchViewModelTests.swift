@@ -47,8 +47,8 @@ struct FlyLaunchViewModelTests {
         let viewModel = FlyLaunchViewModel()
         
         #expect(viewModel.flyAPIToken.isEmpty)
-        #expect(viewModel.appName.isEmpty)
-        #expect(viewModel.image == "nginx")
+        #expect(viewModel.appName == "claude")
+        #expect(viewModel.image == "python:3.11-slim")
         #expect(viewModel.region == "ord")
         #expect(!viewModel.isLoading)
         #expect(viewModel.errorMessage == nil)

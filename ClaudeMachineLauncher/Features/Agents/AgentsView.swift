@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct FlyLaunchView: View {
+struct AgentsView: View {
     @StateObject private var viewModel = FlyLaunchViewModel()
     
     var body: some View {
@@ -157,5 +157,5 @@ struct InfoRow: View {
 }
 
 #Preview {
-    FlyLaunchView()
+    AgentsView()
 }
