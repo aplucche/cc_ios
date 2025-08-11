@@ -41,3 +41,41 @@ struct FlyLaunchRequest: Codable {
         self.config = config.toMachineConfig()
     }
 }
+
+// MARK: - App Deployment Models
+
+struct FlyDeployRequest: Codable {
+    let region: String
+    let config: MachineConfig
+    let restart: RestartPolicy?
+    
+    init(config: FlyLaunchConfig) {
+        self.region = config.region
+        self.config = config.toMachineConfig()
+        self.restart = RestartPolicy(policy: "always")
+    }
+}
+
+struct RestartPolicy: Codable {
+    let policy: String
+}
+
+struct FlyDeployResponse: Codable {
+    let id: String
+    let name: String
+    let state: String
+    let region: String
+    let instanceId: String?
+    let privateIP: String?
+    let config: MachineConfig?
+    let createdAt: String
+    let updatedAt: String
+    
+    enum CodingKeys: String, CodingKey {
+        case id, name, state, region, config
+        case instanceId = "instance_id"
+        case privateIP = "private_ip"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}

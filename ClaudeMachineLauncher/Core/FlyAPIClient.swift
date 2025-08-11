@@ -161,6 +161,37 @@ class FlyAPIClient {
         }
     }
     
+    // MARK: - App Deployment
+    
+    func deployApp(appName: String, deployRequest: FlyDeployRequest, token: String) -> AnyPublisher<FlyDeployResponse, APIError> {
+        Logger.log("Deploying app: \(appName) with image: \(deployRequest.config.image)", category: .network)
+        
+        guard let url = URL(string: "\(baseURL)/apps/\(appName)/machines") else {
+            Logger.log("Invalid URL for app deployment: \(appName)", category: .network)
+            return Fail(error: APIError.invalidURL)
+                .eraseToAnyPublisher()
+        }
+        
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+            let body = try encoder.encode(deployRequest)
+            
+            return performRequest(
+                url: url,
+                method: "POST",
+                body: body,
+                token: token,
+                responseType: FlyDeployResponse.self,
+                operationName: "App deployment"
+            )
+        } catch {
+            Logger.log("Failed to encode deployment request: \(error)", category: .network)
+            return Fail(error: APIError.decodingError(error))
+                .eraseToAnyPublisher()
+        }
+    }
+    
     // MARK: - Machine Management
     
     func launchMachine(appName: String, request: FlyLaunchRequest, token: String) -> AnyPublisher<FlyMachine, APIError> {

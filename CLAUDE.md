@@ -26,9 +26,10 @@ Use the Makefile for centralized command management:
 ```bash
 make ios-build         # Build iOS app
 make ios-test          # Run iOS tests  
-make server-dev        # Run FastAPI server locally
+make server-dev        # Run FastAPI server locally (for testing)
 make docker-test       # Build and test Docker container
 make container-publish # Guide to publish container to GHCR
+make test-integration  # Run full integration test suite
 make help             # Show all available commands
 ```
 
@@ -92,12 +93,20 @@ ClaudeMachineLauncher/
 
 ---
 
-## Development Phases
+## Application Workflow
 
-1. **UI Shell**: Basic form with API key, image, app name inputs
-2. **Launch Logic**: Implement Fly.io machine creation API call  
-3. **Status View**: Display machine ID, state, region from API response
-4. **Claude Integration**: Add Claude API key field for future automation
+### Complete Integration Flow
+1. **Agents Tab**: Launch Fly.io machine using Fly.io REST API with our custom claude-agent container
+2. **Get Machine URL**: Launched machine endpoint is `{machine-id}.{app-name}.fly.dev`
+3. **Terminal Tab**: Auto-populated with machine URL, connect via WebSocket for real-time Claude interaction
+4. **Stream Communication**: Direct bidirectional communication with Claude running in the launched container
+
+### Key Points
+- **No Fly CLI needed**: App uses Fly.io REST API directly
+- **Container Image**: Default is `ghcr.io/aplucche/cc_ios-claude-agent:latest` 
+- **Multi-Session Architecture**: SessionManager handles multiple persistent WebSocket connections
+- **Background Persistence**: Terminal sessions continue running when switching between agents
+- **Auto-Deployment**: App programmatically deploys containers to create public hostnames
 
 ---
 

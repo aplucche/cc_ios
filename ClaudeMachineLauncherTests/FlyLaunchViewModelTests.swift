@@ -47,8 +47,8 @@ struct FlyLaunchViewModelTests {
         let viewModel = FlyLaunchViewModel()
         
         #expect(viewModel.flyAPIToken.isEmpty)
-        #expect(viewModel.appName == "claude")
-        #expect(viewModel.image == "python:3.11-slim")
+        #expect(viewModel.appName == "claudeagents")
+        #expect(viewModel.image == "ghcr.io/aplucche/cc_ios-claude-agent:latest")
         #expect(viewModel.region == "ord")
         #expect(!viewModel.isLoading)
         #expect(viewModel.errorMessage == nil)

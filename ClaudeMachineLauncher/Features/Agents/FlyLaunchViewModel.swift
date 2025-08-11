@@ -3,8 +3,8 @@ import Combine
 
 class FlyLaunchViewModel: ObservableObject {
     @Published var flyAPIToken: String = ""
-    @Published var appName: String = "claude"
-    @Published var image: String = "python:3.11-slim"
+    @Published var appName: String = "claudeagents"
+    @Published var image: String = "ghcr.io/aplucche/cc_ios-claude-agent:latest"
     @Published var region: String = "ord"
     @Published var claudeAPIKey: String = ""
     
@@ -41,7 +41,7 @@ class FlyLaunchViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        statusMessage = "Checking app..."
+        statusMessage = "Starting deployment..."
         
         service.launchMachine(config: config, token: flyAPIToken)
             .receive(on: DispatchQueue.main)
@@ -59,6 +59,11 @@ class FlyLaunchViewModel: ObservableObject {
                     self?.launchedMachine = machine
                     self?.errorMessage = nil
                     self?.statusMessage = ""
+                    
+                    // Add machine to multi-session management
+                    if let machineURL = self?.constructMachineURL(machine: machine) {
+                        AppStateManager.shared.addMachine(machine, url: machineURL, token: self?.flyAPIToken ?? "")
+                    }
                 }
             )
             .store(in: &cancellables)
@@ -94,5 +99,17 @@ class FlyLaunchViewModel: ObservableObject {
         launchedMachine = nil
         errorMessage = nil
         statusMessage = ""
+        AppStateManager.shared.clearAllMachines()
+    }
+    
+    private func constructMachineURL(machine: FlyMachine) -> String? {
+        // Try multiple hostname formats for Fly machines
+        // Option 1: Machine-specific hostname (if it exists)
+        // Option 2: Use private IP directly (IPv6)
+        // Option 3: Fallback to app hostname
+        
+        // Fly machines are accessible via app hostname once the app is deployed
+        // The key issue is that we need to deploy the app first to get the hostname
+        return "\(appName).fly.dev"
     }
 }

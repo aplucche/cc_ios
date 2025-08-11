@@ -5,6 +5,7 @@ protocol FlyLaunchServiceProtocol {
     func launchMachine(config: FlyLaunchConfig, token: String) -> AnyPublisher<FlyMachine, APIError>
     func getMachineStatus(appName: String, machineId: String, token: String) -> AnyPublisher<FlyMachine, APIError>
     func ensureAppExists(appName: String, token: String) -> AnyPublisher<FlyApp, APIError>
+    func deployApp(config: FlyLaunchConfig, token: String) -> AnyPublisher<FlyDeployResponse, APIError>
 }
 
 class FlyLaunchService: FlyLaunchServiceProtocol {
@@ -17,10 +18,24 @@ class FlyLaunchService: FlyLaunchServiceProtocol {
     func launchMachine(config: FlyLaunchConfig, token: String) -> AnyPublisher<FlyMachine, APIError> {
         Logger.log("Service launching machine with config: app=\(config.appName), image=\(config.image), region=\(config.region)", category: .system)
         
-        // Ensure app exists before launching machine
+        // 1. Ensure app exists
+        // 2. Deploy the app to create hostname  
+        // 3. Launch additional machines
         return ensureAppExists(appName: config.appName, token: token)
-            .flatMap { [weak self] app -> AnyPublisher<FlyMachine, APIError> in
-                Logger.log("App confirmed: \(app.name), proceeding with machine launch", category: .system)
+            .handleEvents(receiveOutput: { _ in
+                Logger.log("✅ App confirmed, starting deployment...", category: .system)
+            })
+            .flatMap { [weak self] app -> AnyPublisher<FlyDeployResponse, APIError> in
+                Logger.log("Deploying \(app.name) to create public hostname", category: .system)
+                guard let self = self else {
+                    return Fail(error: APIError.invalidResponse).eraseToAnyPublisher()
+                }
+                return self.deployApp(config: config, token: token)
+            }
+            .handleEvents(receiveOutput: { deployResponse in
+                Logger.log("✅ App deployed: \(deployResponse.name), launching additional machine...", category: .system)
+            })
+            .flatMap { [weak self] deployResponse -> AnyPublisher<FlyMachine, APIError> in
                 guard let self = self else {
                     return Fail(error: APIError.invalidResponse).eraseToAnyPublisher()
                 }
@@ -70,5 +85,12 @@ class FlyLaunchService: FlyLaunchServiceProtocol {
                 return Fail(error: error).eraseToAnyPublisher()
             }
             .eraseToAnyPublisher()
+    }
+    
+    func deployApp(config: FlyLaunchConfig, token: String) -> AnyPublisher<FlyDeployResponse, APIError> {
+        Logger.log("Service deploying app: \(config.appName) with image: \(config.image)", category: .system)
+        
+        let deployRequest = FlyDeployRequest(config: config)
+        return apiClient.deployApp(appName: config.appName, deployRequest: deployRequest, token: token)
     }
 }

@@ -3,7 +3,7 @@ import json
 import os
 import subprocess
 import uuid
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Dict, Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, status
@@ -26,20 +26,35 @@ class AgentProcess:
         self.output_queue = asyncio.Queue()
         self.input_queue = asyncio.Queue()
         self.websocket: Optional[WebSocket] = None
-        self.created_at = datetime.utcnow()
+        self.created_at = datetime.now(UTC)
         self.is_running = False
 
     async def start_process(self):
         """Start the Claude Code process"""
         try:
-            # For demo purposes, start a simple interactive shell
-            # In production, this would start Claude Code with appropriate configs
-            self.process = subprocess.Popen(
-                ["python", "-c", """
+            # Check if claude-code is available, fallback to demo shell
+            claude_available = await self._check_claude_availability()
+            
+            if claude_available:
+                # Start actual Claude Code CLI
+                self.process = subprocess.Popen(
+                    ["claude-code", "--interactive"],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True,
+                    env=dict(os.environ, PYTHONUNBUFFERED="1")
+                )
+            else:
+                # Fallback to demo shell for testing
+                self.process = subprocess.Popen(
+                    ["python", "-c", """
 import sys
 import time
 
-print('Claude Agent Terminal Ready')
+print('Claude Agent Terminal Ready (Demo Mode)')
 print('Agent ID: {agent_id}')
 print('Type commands or send messages...')
 
@@ -52,13 +67,13 @@ while True:
     except (EOFError, KeyboardInterrupt):
         break
 """.format(agent_id=self.agent_id)],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                universal_newlines=True
-            )
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True
+                )
             self.is_running = True
             
             # Start background task to read process output
@@ -66,6 +81,19 @@ while True:
             
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to start agent: {str(e)}")
+
+    async def _check_claude_availability(self) -> bool:
+        """Check if claude-code CLI is available"""
+        try:
+            result = subprocess.run(
+                ["claude-code", "--version"], 
+                capture_output=True, 
+                text=True, 
+                timeout=5
+            )
+            return result.returncode == 0
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return False
 
     async def _read_process_output(self):
         """Read output from the process and queue it for WebSocket"""

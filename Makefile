@@ -1,5 +1,5 @@
 # Claude Machine Launcher - Development Commands
-.PHONY: help ios-generate ios-build ios-test server-dev docker-build docker-test container-publish
+.PHONY: help ios-generate ios-build ios-test server-dev docker-build docker-test container-publish test-integration
 
 # Default target
 help:
@@ -11,6 +11,7 @@ help:
 	@echo "  docker-build      Build Docker container"
 	@echo "  docker-test       Test Docker container locally"
 	@echo "  container-publish Push to main branch to trigger GHCR publish"
+	@echo "  test-integration  Run full integration test suite"
 
 # Variables
 IOS_SCHEME = ClaudeMachineLauncher
@@ -52,3 +53,7 @@ container-publish:
 	@echo "2. Push to main branch: git push origin main"
 	@echo "3. GitHub Actions will build and push to: $(GHCR_IMAGE)"
 	@echo "4. Use this image in your iOS app's Fly machine creation API calls"
+
+# Integration Testing
+test-integration:
+	./test-integration.sh
