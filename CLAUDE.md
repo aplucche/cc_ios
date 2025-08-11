@@ -21,18 +21,24 @@ sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 
 ## Core Commands
 
+Use the Makefile for centralized command management:
+
+```bash
+make ios-build         # Build iOS app
+make ios-test          # Run iOS tests  
+make server-dev        # Run FastAPI server locally
+make docker-test       # Build and test Docker container
+make container-publish # Guide to publish container to GHCR
+make help             # Show all available commands
+```
+
+### Legacy Commands (still work)
 ```bash
 # Generate Xcode project (required before first build)
 xcodegen generate
 
-# Build app
+# Build app manually
 xcodebuild -scheme ClaudeMachineLauncher -destination 'platform=iOS Simulator,name=iPhone 16' | xcbeautify --quieter
-
-# Run tests
-xcodebuild test -scheme ClaudeMachineLauncher -destination 'platform=iOS Simulator,name=iPhone 16' | xcbeautify --quieter
-
-# Build and test in one step
-xcodegen generate && xcodebuild test -scheme ClaudeMachineLauncher -destination 'platform=iOS Simulator,name=iPhone 16' | xcbeautify --quieter
 ```
 
 ---

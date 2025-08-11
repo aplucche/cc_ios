@@ -36,22 +36,22 @@ struct TerminalView: View {
                 .font(.system(size: 60))
                 .foregroundColor(.secondary)
             
-            Text("Connect to Claude Machine")
+            Text("Connect to Claude Agent")
                 .font(.title2)
                 .fontWeight(.medium)
             
             VStack(spacing: 16) {
-                TextField("Host (e.g., machine.fly.dev)", text: $viewModel.host)
+                TextField("Host (e.g., agent.fly.dev)", text: $viewModel.host)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .textInputAutocapitalization(.never)
                     .disableAutocorrection(true)
                 
-                TextField("Username", text: $viewModel.username)
+                TextField("Agent ID (e.g., default)", text: $viewModel.agentId)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .textInputAutocapitalization(.never)
                     .disableAutocorrection(true)
                 
-                SecureField("Password (optional)", text: $viewModel.password)
+                SecureField("Auth Token", text: $viewModel.authToken)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
             }
             .padding(.horizontal)
