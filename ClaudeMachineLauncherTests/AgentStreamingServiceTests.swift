@@ -83,6 +83,9 @@ func testTerminalViewModelConnectionState() async throws {
 func testAppStateManagerMultiMachineState() {
     let appState = AppStateManager.shared
     
+    // Clear any existing state from other tests
+    appState.clearAllMachines()
+    
     // Create test machine
     let testMachine = FlyMachine(
         id: "test-123",
@@ -94,7 +97,7 @@ func testAppStateManagerMultiMachineState() {
         config: nil
     )
     
-    appState.addMachine(testMachine, url: "test.fly.dev", token: "test-token")
+    appState.addMachine(testMachine, appName: "test", token: "test-token")
     
     #expect(appState.hasMachines == true)
     #expect(appState.machines.count == 1)

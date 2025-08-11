@@ -17,7 +17,10 @@ struct FlyLaunchConfig {
     
     func toMachineConfig() -> MachineConfig {
         let service = MachineService(
-            ports: [Port(port: 80, handlers: ["http"])],
+            ports: [
+                Port(port: 80, handlers: ["http"]),
+                Port(port: 443, handlers: ["tls", "http"])
+            ],
             protocolType: "tcp",
             internalPort: internalPort
         )

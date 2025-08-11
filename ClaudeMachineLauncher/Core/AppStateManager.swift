@@ -18,7 +18,7 @@ class AppStateManager: ObservableObject {
         !machines.isEmpty
     }
     
-    func addMachine(_ machine: FlyMachine, url: String, token: String) {
+    func addMachine(_ machine: FlyMachine, appName: String, token: String) {
         Logger.log("Adding machine: \(machine.id)", category: .system)
         
         // Add to machines list if not already present
@@ -27,7 +27,7 @@ class AppStateManager: ObservableObject {
         }
         
         // Create session in SessionManager
-        SessionManager.shared.createSession(for: machine, url: url, authToken: token)
+        SessionManager.shared.createSession(for: machine, appName: appName, authToken: token)
         
         // Select as active if it's the first machine
         DispatchQueue.main.async { [weak self] in

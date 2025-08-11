@@ -61,9 +61,7 @@ class FlyLaunchViewModel: ObservableObject {
                     self?.statusMessage = ""
                     
                     // Add machine to multi-session management
-                    if let machineURL = self?.constructMachineURL(machine: machine) {
-                        AppStateManager.shared.addMachine(machine, url: machineURL, token: self?.flyAPIToken ?? "")
-                    }
+                    AppStateManager.shared.addMachine(machine, appName: self?.appName ?? "", token: self?.flyAPIToken ?? "")
                 }
             )
             .store(in: &cancellables)

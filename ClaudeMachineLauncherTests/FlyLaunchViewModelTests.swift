@@ -39,6 +39,40 @@ class MockFlyLaunchService: FlyLaunchServiceProtocol {
                 .eraseToAnyPublisher()
         }
     }
+    
+    func deployApp(config: FlyLaunchConfig, token: String) -> AnyPublisher<FlyDeployResponse, APIError> {
+        if shouldSucceed {
+            let response = FlyDeployResponse(
+                id: "deploy-123",
+                name: config.appName,
+                state: "started",
+                region: config.region,
+                instanceId: nil,
+                privateIP: nil,
+                config: nil,
+                createdAt: "2024-01-01T00:00:00Z",
+                updatedAt: "2024-01-01T00:00:00Z"
+            )
+            return Just(response)
+                .setFailureType(to: APIError.self)
+                .eraseToAnyPublisher()
+        } else {
+            return Fail(error: APIError.serverError(500))
+                .eraseToAnyPublisher()
+        }
+    }
+    
+    func allocateIPs(appName: String, token: String) -> AnyPublisher<Bool, APIError> {
+        if shouldSucceed {
+            return Just(true)
+                .setFailureType(to: APIError.self)
+                .eraseToAnyPublisher()
+        } else {
+            return Fail(error: APIError.serverError(500))
+                .eraseToAnyPublisher()
+        }
+    }
+    
 }
 
 struct FlyLaunchViewModelTests {

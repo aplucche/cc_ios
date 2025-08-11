@@ -32,7 +32,7 @@ class SessionManager: ObservableObject {
         activeSessions.count
     }
     
-    func createSession(for machine: FlyMachine, url: String, authToken: String) {
+    func createSession(for machine: FlyMachine, appName: String, authToken: String) {
         Logger.log("Creating session for machine: \(machine.id)", category: .system)
         
         // Avoid creating duplicate sessions
@@ -41,11 +41,14 @@ class SessionManager: ObservableObject {
             return
         }
         
+        // Use public app hostname instead of private IP
+        let publicHostname = "\(appName).fly.dev"
+        
         let streamingService = AgentStreamingService()
         let session = MachineSession(
             machine: machine,
             streamingService: streamingService,
-            url: url,
+            url: publicHostname,
             authToken: authToken
         )
         
@@ -60,7 +63,7 @@ class SessionManager: ObservableObject {
         
         // Auto-connect to the session with delay
         Task {
-            try await Task.sleep(nanoseconds: 2_000_000_000) // 2 second delay
+            try await Task.sleep(nanoseconds: 5_000_000_000) // 5 second delay
             await MainActor.run { [weak self] in
                 self?.connectToSession(machineId: machine.id)
             }
@@ -85,16 +88,21 @@ class SessionManager: ObservableObject {
     
     private func attemptConnection(session: MachineSession, machineId: String, retries: Int) async {
         do {
-            // Construct WebSocket URL
+            // First check if the service is responding via HTTP health check
+            let healthCheckPassed = await performHealthCheck(url: session.url)
+            
+            if !healthCheckPassed && retries > 0 {
+                Logger.log("Health check failed, retrying in 15 seconds... (\(retries) retries left)", category: .network)
+                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                await attemptConnection(session: session, machineId: machineId, retries: retries - 1)
+                return
+            }
+            
+            // Construct WebSocket URL for public hostname
             var components = URLComponents()
-            components.scheme = session.url.contains("[") ? "ws" : "wss"  // Use ws for private IPs
+            components.scheme = "wss"  // Use secure WebSocket with proper TLS
             components.host = session.url
             components.path = "/agents/default/stream"
-            
-            // For private IPs, use port 8080 directly
-            if session.url.contains("[") {
-                components.port = 8080
-            }
             
             guard let wsURL = components.url else {
                 Logger.log("Invalid WebSocket URL for: \(session.url)", category: .network)
@@ -105,18 +113,51 @@ class SessionManager: ObservableObject {
             Logger.log("Machine state: \(session.machine.state)", category: .network)
             
             try await session.streamingService.connect(to: wsURL, with: session.authToken)
-            Logger.log("Connected to machine: \(machineId)", category: .network)
+            Logger.log("✅ Connected to machine: \(machineId)", category: .network)
             
         } catch {
             Logger.log("Failed to connect to machine \(machineId): \(error.localizedDescription)", category: .network)
             
             if retries > 0 {
-                Logger.log("Retrying connection in 10 seconds... (\(retries) retries left)", category: .network)
-                try? await Task.sleep(nanoseconds: 10_000_000_000) // 10 seconds
+                Logger.log("Retrying connection in 15 seconds... (\(retries) retries left)", category: .network)
+                try? await Task.sleep(nanoseconds: 15_000_000_000) // 15 seconds - longer for deployment
                 await attemptConnection(session: session, machineId: machineId, retries: retries - 1)
             } else {
-                Logger.log("All connection attempts failed for machine: \(machineId)", category: .network)
+                Logger.log("❌ All connection attempts failed for machine: \(machineId)", category: .network)
             }
+        }
+    }
+    
+    private func performHealthCheck(url: String) async -> Bool {
+        do {
+            // Configure URLSession for better iOS/Fly.io SSL compatibility
+            let config = URLSessionConfiguration.default
+            config.timeoutIntervalForRequest = 15
+            config.timeoutIntervalForResource = 30
+            config.tlsMinimumSupportedProtocolVersion = .TLSv12  // Force TLS 1.2+
+            
+            let urlSession = URLSession(configuration: config)
+            
+            let healthURL = URL(string: "https://\(url)/")!
+            Logger.log("Health check: \(healthURL.absoluteString)", category: .network)
+            
+            var request = URLRequest(url: healthURL)
+            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData  // Fix from research
+            request.setValue("ClaudeApp/1.0", forHTTPHeaderField: "User-Agent")
+            
+            let (_, response) = try await urlSession.data(for: request)
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                // Accept any response that shows the server is responding
+                let success = httpResponse.statusCode < 500
+                Logger.log("Health check \(success ? "✅ passed" : "❌ failed") (\(httpResponse.statusCode))", category: .network)
+                return success
+            }
+            
+            return false
+        } catch {
+            Logger.log("Health check failed: \(error.localizedDescription)", category: .network)
+            return false
         }
     }
     
