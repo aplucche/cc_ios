@@ -1,13 +1,15 @@
 # Claude Agent Server
 
-FastAPI server that provides WebSocket streaming interface for Claude agents running in containers.
+FastAPI server providing PTY-based terminal access via WebSocket.
 
 ## Features
 
-- **WebSocket Streaming**: Real-time bidirectional communication with agents
-- **Agent Management**: HTTP endpoints for agent lifecycle management
+- **Real PTY Terminal**: Actual bash/zsh shells via Python pty module
+- **WebSocket Streaming**: Bidirectional communication between iOS and shell
+- **Terminal Features**: Command history, tab completion, ANSI colors, resize handling
+- **Multi-Client Support**: Multiple iOS devices can connect to same shell session
+- **Agent Management**: HTTP endpoints for lifecycle management
 - **Bearer Token Auth**: Secure API access
-- **ANSI Compatible**: Output formatted for terminal emulators like SwiftTerm
 
 ## API Endpoints
 

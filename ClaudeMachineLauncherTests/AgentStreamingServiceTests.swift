@@ -80,15 +80,15 @@ func testTerminalViewModelConnectionState() async throws {
 }
 
 @Test("AppStateManager multi-machine state")
-func testAppStateManagerMultiMachineState() {
+func testAppStateManagerMultiMachineState() async {
+    // Clean slate for test isolation
+    TestIsolation.cleanupSharedState()
+    
     let appState = AppStateManager.shared
     
-    // Clear any existing state from other tests
-    appState.clearAllMachines()
-    
-    // Create test machine
+    // Create test machine with unique ID
     let testMachine = FlyMachine(
-        id: "test-123",
+        id: "test-\(UUID().uuidString)",
         name: "test-machine",
         state: "started",
         region: "ord",
@@ -99,9 +99,12 @@ func testAppStateManagerMultiMachineState() {
     
     appState.addMachine(testMachine, appName: "test", token: "test-token")
     
+    // Wait for async operations to complete
+    await TestIsolation.waitForAsync()
+    
     #expect(appState.hasMachines == true)
     #expect(appState.machines.count == 1)
-    #expect(appState.selectedMachineId == "test-123")
+    #expect(appState.selectedMachineId == testMachine.id)
     
     appState.clearAllMachines()
     

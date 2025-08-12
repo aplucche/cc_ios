@@ -90,6 +90,9 @@ ClaudeMachineLauncher/
 - Use Swift Testing framework (`import Testing`)
 - Mock services implement protocol interfaces
 - Test files use `@testable import ClaudeMachineLauncher`
+- High-leverage tests cover: SessionManager, TerminalViewModel, error handling
+- Server tests: `python server/test_server.py` for PTY functionality
+- Run iOS tests: `make ios-test`
 
 ---
 
@@ -98,15 +101,22 @@ ClaudeMachineLauncher/
 ### Complete Integration Flow
 1. **Agents Tab**: Launch Fly.io machine using Fly.io REST API with our custom claude-agent container
 2. **Get Machine URL**: Launched machine endpoint is `{machine-id}.{app-name}.fly.dev`
-3. **Terminal Tab**: Auto-populated with machine URL, connect via WebSocket for real-time Claude interaction
-4. **Stream Communication**: Direct bidirectional communication with Claude running in the launched container
+3. **Terminal Tab**: Auto-populated with machine URL, connect via WebSocket to PTY-based shell
+4. **Real Terminal**: Direct bidirectional communication with bash/zsh running in launched container
+
+### PTY-Based Terminal Architecture
+- **Real Shell**: Container runs actual bash/zsh via Python PTY (pseudo-terminal)
+- **Full Terminal Features**: Command history, tab completion, ANSI colors, line editing
+- **WebSocket Bridge**: PTY output → WebSocket → iOS, iOS input → WebSocket → PTY
+- **Terminal Resizing**: iOS sends resize messages, server updates PTY window size with SIGWINCH
+- **Message Buffering**: iOS buffers messages until SwiftTerm is ready, then replays
 
 ### Key Points
 - **No Fly CLI needed**: App uses Fly.io REST API directly
 - **Container Image**: Default is `ghcr.io/aplucche/cc_ios-claude-agent:latest` 
 - **Multi-Session Architecture**: SessionManager handles multiple persistent WebSocket connections
 - **Background Persistence**: Terminal sessions continue running when switching between agents
-- **Auto-Deployment**: App programmatically deploys containers to create public hostnames
+- **Terminal Access**: Command-line interface for container interaction
 
 ---
 
@@ -118,10 +128,17 @@ ClaudeMachineLauncher/
 - Group imports at top, extensions at bottom
 
 
-## Logging (Minimal Strategy)
+## Logging (Toggleable Debug Strategy)
 
 - Use a single `Logger.log(_:category:)` method for all logs
 - Categories: `.ui`, `.network`, `.system`, `.agent`
-- Prints to Xcode console and system log via `os_log`
+- **Debug Toggle**: Set `DEBUG_LOGGING` environment variable to enable logging
+- Prints to Xcode console and system log via `os_log` (when enabled)
 - One-liner usage: `Logger.log("Launching", category: .network)`
+- **Production Ready**: No log noise in production builds
 - Optional: use `LogStore` to expose logs in-app or for Claude inspection
+
+### Server Logging
+- Server uses `debug_log()` function that checks `DEBUG_LOGGING` env var
+- Same toggle mechanism as iOS client
+- Clean production deployment with optional debugging
