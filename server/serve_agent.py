@@ -25,37 +25,33 @@ class AgentProcess:
         self.process: Optional[subprocess.Popen] = None
         self.output_queue = asyncio.Queue()
         self.input_queue = asyncio.Queue()
-        self.websocket: Optional[WebSocket] = None
+        self.websockets: set[WebSocket] = set()
         self.created_at = datetime.now(UTC)
         self.is_running = False
 
     async def start_process(self):
-        """Start the Claude Code process"""
+        """Start the Claude Code process using async subprocess"""
         try:
             # Check if claude-code is available, fallback to demo shell
             claude_available = await self._check_claude_availability()
             
             if claude_available:
-                # Start actual Claude Code CLI
-                self.process = subprocess.Popen(
-                    ["claude-code", "--interactive"],
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    bufsize=1,
-                    universal_newlines=True,
+                # Start actual Claude Code CLI with async subprocess
+                self.process = await asyncio.create_subprocess_exec(
+                    "claude-code", "--interactive",
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.STDOUT,
                     env=dict(os.environ, PYTHONUNBUFFERED="1")
                 )
             else:
-                # Fallback to demo shell for testing
-                self.process = subprocess.Popen(
-                    ["python", "-u", "-c", """
+                # Fallback to demo shell for testing with async subprocess
+                demo_code = f"""
 import sys
 import time
 
 print('Claude Agent Terminal Ready (Demo Mode)', flush=True)
-print('Agent ID: {agent_id}', flush=True)
+print('Agent ID: {self.agent_id}', flush=True)
 print('Type commands or send messages...', flush=True)
 print('claude> ', end='', flush=True)
 
@@ -74,18 +70,19 @@ while True:
         break
         
 print('\\r\\nDemo session ended.', flush=True)
-""".format(agent_id=self.agent_id)],
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    bufsize=1,
-                    universal_newlines=True
+"""
+                self.process = await asyncio.create_subprocess_exec(
+                    "python", "-u", "-c", demo_code,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.STDOUT,
+                    env=dict(os.environ, PYTHONUNBUFFERED="1")
                 )
+            
             self.is_running = True
             
-            # Start background task to read process output
-            asyncio.create_task(self._read_process_output())
+            # Start background task to read process output asynchronously
+            asyncio.create_task(self._read_process_output_async())
             
         except Exception as e:
             print(f"Agent start error: {type(e).__name__}: {str(e)}")
@@ -106,30 +103,32 @@ print('\\r\\nDemo session ended.', flush=True)
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
 
-    async def _read_process_output(self):
-        """Read output from the process and queue it for WebSocket"""
+    async def _read_process_output_async(self):
+        """Read output from the async process and queue it for WebSocket"""
         if not self.process:
             return
             
         try:
-            while self.is_running and self.process.poll() is None:
-                line = self.process.stdout.readline()
-                if line:
-                    await self.output_queue.put(line)
-                await asyncio.sleep(0.01)
+            while self.is_running and self.process.returncode is None:
+                line = await self.process.stdout.readline()
+                if not line:  # EOF
+                    break
+                decoded_line = line.decode(errors="ignore")
+                await self.output_queue.put(decoded_line)
         except Exception as e:
             await self.output_queue.put(f"Error reading process output: {str(e)}\n")
         finally:
             self.is_running = False
 
     async def send_input(self, data: str):
-        """Send input to the process"""
+        """Send input to the async process"""
         if self.process and self.process.stdin:
             try:
                 print(f"Sending to subprocess: {repr(data)}")
-                self.process.stdin.write(data + "\n")
-                self.process.stdin.flush()
-                print(f"Sent and flushed to subprocess")
+                message = (data + "\n").encode()
+                self.process.stdin.write(message)
+                await self.process.stdin.drain()
+                print(f"Sent and drained to subprocess")
             except Exception as e:
                 print(f"Error sending input to subprocess: {e}")
                 await self.output_queue.put(f"Error sending input: {str(e)}\n")
@@ -140,9 +139,13 @@ print('\\r\\nDemo session ended.', flush=True)
         if self.process:
             try:
                 self.process.terminate()
-                self.process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.process.kill()
+                try:
+                    await asyncio.wait_for(self.process.wait(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    self.process.kill()
+                    await self.process.wait()
+            except Exception as e:
+                print(f"Error stopping process: {e}")
             self.process = None
 
     def get_status(self):
@@ -189,15 +192,16 @@ async def websocket_endpoint(websocket: WebSocket, agent_id: str):
             await agents[agent_id].start_process()
         
         agent = agents[agent_id]
-        agent.websocket = websocket
+        agent.websockets.add(websocket)
         
         # Send initial welcome message
         await websocket.send_text("Connected to Claude Agent Terminal\r\n")
         await websocket.send_text(f"Agent ID: {agent_id}\r\n")
         await websocket.send_text("Ready for commands...\r\n")
         
-        # Start background task to send queued output to WebSocket
-        output_task = asyncio.create_task(send_output_to_websocket(agent, websocket))
+        # Start background task to send queued output to WebSocket (only if first client)
+        if len(agent.websockets) == 1:
+            output_task = asyncio.create_task(send_output_to_websocket(agent))
         
         # Handle incoming messages from WebSocket
         while True:
@@ -206,7 +210,7 @@ async def websocket_endpoint(websocket: WebSocket, agent_id: str):
             
     except WebSocketDisconnect:
         if agent_id in agents:
-            agents[agent_id].websocket = None
+            agents[agent_id].websockets.discard(websocket)
         if 'output_task' in locals() and output_task:
             output_task.cancel()
     except Exception as e:
@@ -214,22 +218,38 @@ async def websocket_endpoint(websocket: WebSocket, agent_id: str):
         await websocket.close()
 
 
-async def send_output_to_websocket(agent: AgentProcess, websocket: WebSocket):
-    """Background task to send agent output to WebSocket"""
+async def send_output_to_websocket(agent: AgentProcess):
+    """Background task to send agent output to all connected WebSockets"""
     try:
-        while agent.websocket == websocket:
+        while agent.is_running:
             try:
                 # Wait for output with timeout
                 output = await asyncio.wait_for(agent.output_queue.get(), timeout=1.0)
-                await websocket.send_text(output.replace('\n', '\r\n'))
+                formatted_output = output.replace('\n', '\r\n')
+                
+                # Send to all connected websockets
+                dead_websockets = []
+                for ws in list(agent.websockets):
+                    try:
+                        await ws.send_text(formatted_output)
+                    except Exception as e:
+                        print(f"Error sending to websocket: {e}")
+                        dead_websockets.append(ws)
+                
+                # Remove dead websockets
+                for ws in dead_websockets:
+                    agent.websockets.discard(ws)
+                    
             except asyncio.TimeoutError:
-                # Send periodic heartbeat
+                # Continue waiting for output
                 continue
             except Exception as e:
-                print(f"Error sending output to websocket: {e}")
+                print(f"Error in output queue processing: {e}")
                 break
     except Exception as e:
         print(f"WebSocket output task error: {e}")
+    
+    print(f"Output task ended for agent {agent.agent_id}")
 
 
 @app.get("/agents/{agent_id}/status")
