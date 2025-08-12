@@ -12,6 +12,8 @@ class TerminalViewModel: ObservableObject {
     
     private var terminalView: SwiftTerm.TerminalView?
     private var cancellables = Set<AnyCancellable>()
+    private var sessionCancellables = Set<AnyCancellable>()
+    private var messageBuffer: [String] = []
     
     // Legacy properties for backward compatibility
     @Published var host: String = ""
@@ -55,16 +57,30 @@ class TerminalViewModel: ObservableObject {
     private func setupActiveSessionBinding() {
         // This will be called whenever active session changes
         SessionManager.shared.$activeSessionId
-            .compactMap { SessionManager.shared.activeSessions[$0 ?? ""] }
+            .compactMap { (sessionId: String?) -> MachineSession? in
+                guard let sessionId = sessionId else {
+                    Logger.log("No active session ID", category: .ui)
+                    return nil
+                }
+                let session = SessionManager.shared.activeSessions[sessionId]
+                if session == nil {
+                    Logger.log("No session found for ID: \(sessionId)", category: .ui)
+                }
+                return session
+            }
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] session in
+            .sink { [weak self] (session: MachineSession) in
+                Logger.log("Active session changed, binding to new session", category: .ui)
                 self?.bindToSession(session)
             }
             .store(in: &cancellables)
     }
     
     private func bindToSession(_ session: MachineSession) {
-        // For now, we'll keep all cancellables - optimize later if needed
+        Logger.log("Binding to session for machine: \(session.machine.id)", category: .ui)
+        
+        // Clear existing session bindings to avoid duplicates
+        sessionCancellables.removeAll()
         
         // Bind to session's streaming service
         session.streamingService.connectionState
@@ -88,14 +104,35 @@ class TerminalViewModel: ObservableObject {
                     self?.errorMessage = error.localizedDescription
                 }
             }
-            .store(in: &cancellables)
+            .store(in: &sessionCancellables)
         
         session.streamingService.messages
             .receive(on: DispatchQueue.main)
             .sink { [weak self] message in
-                self?.terminalView?.feed(text: message)
+                Logger.log("TerminalViewModel received message: '\(message.prefix(100))'", category: .ui)
+                self?.handleIncomingMessage(message)
             }
-            .store(in: &cancellables)
+            .store(in: &sessionCancellables)
+    }
+    
+    private func handleIncomingMessage(_ message: String) {
+        if let terminalView = terminalView {
+            Logger.log("Feeding message to SwiftTerm", category: .ui)
+            terminalView.feed(text: message)
+        } else {
+            Logger.log("TerminalView not available - buffering message", category: .ui)
+            messageBuffer.append(message)
+        }
+    }
+    
+    private func replayBufferedMessages() {
+        guard !messageBuffer.isEmpty else { return }
+        
+        Logger.log("Replaying \(messageBuffer.count) buffered messages", category: .ui)
+        for message in messageBuffer {
+            terminalView?.feed(text: message)
+        }
+        messageBuffer.removeAll()
     }
     
     private func updateConnectionState() {
@@ -110,8 +147,12 @@ class TerminalViewModel: ObservableObject {
     }
     
     func setTerminalView(_ terminalView: SwiftTerm.TerminalView) {
+        Logger.log("Setting terminal view in TerminalViewModel", category: .ui)
         self.terminalView = terminalView
         setupTerminalDelegate()
+        
+        // Replay any buffered messages immediately
+        replayBufferedMessages()
     }
     
     private func setupTerminalDelegate() {
@@ -147,8 +188,23 @@ class TerminalViewModel: ObservableObject {
 // MARK: - TerminalViewDelegate
 extension TerminalViewModel: TerminalViewDelegate {
     func send(source: SwiftTerm.TerminalView, data: ArraySlice<UInt8>) {
-        let string = String(bytes: data, encoding: .utf8) ?? ""
-        Logger.log("Terminal input: '\(string)'", category: .ui)
+        var processedData = data
+        
+        // Handle special keys for better terminal compatibility
+        if data.count == 1 {
+            let byte = data.first!
+            switch byte {
+            case 0x7F: // DEL key - convert to backspace
+                processedData = [0x08] // BS
+            case 0x0D: // CR (carriage return) - convert to newline  
+                processedData = [0x0A] // LF
+            default:
+                break
+            }
+        }
+        
+        let string = String(bytes: processedData, encoding: .utf8) ?? ""
+        Logger.log("Terminal input: '\(string.replacingOccurrences(of: "\n", with: "\\n").replacingOccurrences(of: "\u{08}", with: "\\b"))'", category: .ui)
         sendInput(string)
     }
     
@@ -161,8 +217,11 @@ extension TerminalViewModel: TerminalViewDelegate {
     }
     
     func sizeChanged(source: SwiftTerm.TerminalView, newCols: Int, newRows: Int) {
-        Logger.log("Terminal size: \(newCols)x\(newRows)", category: .ui)
-        // TODO: Consider notifying remote end of size change if protocol supports it
+        // Only log meaningful size changes (ignore 0x0 during initialization)
+        if newCols > 0 && newRows > 0 {
+            Logger.log("Terminal size: \(newCols)x\(newRows)", category: .ui)
+            // TODO: Consider notifying remote end of size change if protocol supports it
+        }
     }
     
     func clipboardCopy(source: SwiftTerm.TerminalView, content: Data) {

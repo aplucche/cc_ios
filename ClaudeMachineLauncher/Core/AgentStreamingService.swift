@@ -74,6 +74,8 @@ class AgentStreamingService: AgentStreamingServiceProtocol {
             throw error
         }
         
+        Logger.log("WebSocket URL with token: \(wsURL.absoluteString.replacingOccurrences(of: token, with: "***"))", category: .network)
+        
         // Create WebSocket request with auth header and enhanced configuration
         var request = URLRequest(url: wsURL)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -146,12 +148,15 @@ class AgentStreamingService: AgentStreamingServiceProtocol {
     private func handleMessage(_ message: URLSessionWebSocketTask.Message) {
         switch message {
         case .string(let text):
+            Logger.log("Received WebSocket message: '\(text.prefix(100))'", category: .network)
             messagesSubject.send(text)
-            Logger.log("Received message from agent", category: .network)
             
         case .data(let data):
             if let text = String(data: data, encoding: .utf8) {
+                Logger.log("Received WebSocket data as text: '\(text.prefix(100))'", category: .network)
                 messagesSubject.send(text)
+            } else {
+                Logger.log("Received WebSocket data but failed to convert to UTF-8", category: .network)
             }
             
         @unknown default:

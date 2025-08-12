@@ -1,6 +1,8 @@
 import asyncio
 import json
 import os
+import pty
+import signal
 import subprocess
 import uuid
 from datetime import datetime, UTC
@@ -22,68 +24,68 @@ AUTH_TOKEN = os.getenv("AUTH_TOKEN", "default-token")
 class AgentProcess:
     def __init__(self, agent_id: str):
         self.agent_id = agent_id
-        self.process: Optional[subprocess.Popen] = None
+        self.process_pid: Optional[int] = None
+        self.pty_fd: Optional[int] = None
         self.output_queue = asyncio.Queue()
         self.input_queue = asyncio.Queue()
         self.websockets: set[WebSocket] = set()
         self.created_at = datetime.now(UTC)
         self.is_running = False
+        self.terminal_size = (24, 80)  # rows, cols
 
     async def start_process(self):
-        """Start the Claude Code process using async subprocess"""
+        """Start a real shell using PTY"""
         try:
-            # Check if claude-code is available, fallback to demo shell
+            # Check if claude-code is available, fallback to shell
             claude_available = await self._check_claude_availability()
             
             if claude_available:
-                # Start actual Claude Code CLI with async subprocess
-                self.process = await asyncio.create_subprocess_exec(
-                    "claude-code", "--interactive",
-                    stdin=asyncio.subprocess.PIPE,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.STDOUT,
-                    env=dict(os.environ, PYTHONUNBUFFERED="1")
-                )
+                command = ["claude-code", "--interactive"]
             else:
-                # Fallback to demo shell for testing with async subprocess
-                demo_code = f"""
-import sys
-import time
-
-print('Claude Agent Terminal Ready (Demo Mode)', flush=True)
-print('Agent ID: {self.agent_id}', flush=True)
-print('Type commands or send messages...', flush=True)
-print('claude> ', end='', flush=True)
-
-while True:
-    try:
-        line = sys.stdin.readline()
-        if not line:
-            break
-        line = line.strip()
-        if line == 'exit':
-            break
-        if line:
-            print('\\r\\nEcho: ' + line, flush=True)
-        print('claude> ', end='', flush=True)
-    except (EOFError, KeyboardInterrupt):
-        break
-        
-print('\\r\\nDemo session ended.', flush=True)
-"""
-                self.process = await asyncio.create_subprocess_exec(
-                    "python", "-u", "-c", demo_code,
-                    stdin=asyncio.subprocess.PIPE,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.STDOUT,
-                    env=dict(os.environ, PYTHONUNBUFFERED="1")
-                )
+                # Use bash or fallback to sh
+                shell = os.getenv("SHELL", "/bin/bash")
+                if not os.path.exists(shell):
+                    shell = "/bin/sh"
+                command = [shell, "-i"]  # Interactive shell
             
-            self.is_running = True
+            print(f"Starting shell: {' '.join(command)}")
             
-            # Start background task to read process output asynchronously
-            asyncio.create_task(self._read_process_output_async())
+            # Create PTY and fork process
+            self.pty_fd, child_fd = pty.openpty()
+            self.process_pid = os.fork()
             
+            if self.process_pid == 0:
+                # Child process - become shell
+                os.close(self.pty_fd)
+                os.setsid()
+                os.dup2(child_fd, 0)  # stdin
+                os.dup2(child_fd, 1)  # stdout  
+                os.dup2(child_fd, 2)  # stderr
+                os.close(child_fd)
+                
+                # Set terminal size
+                self._set_terminal_size()
+                
+                # Set environment for better shell experience
+                env = os.environ.copy()
+                env.update({
+                    'TERM': 'xterm-256color',
+                    'PS1': '\\[\\033[01;32m\\]\\u@claude-agent\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$ ',
+                    'FORCE_COLOR': '1',
+                    'CLICOLOR': '1'
+                })
+                
+                os.execvpe(command[0], command, env)
+            else:
+                # Parent process
+                os.close(child_fd)
+                self.is_running = True
+                
+                # Start background task to read PTY output
+                asyncio.create_task(self._read_pty_output())
+                
+                print(f"Started shell process PID: {self.process_pid}")
+                
         except Exception as e:
             print(f"Agent start error: {type(e).__name__}: {str(e)}")
             import traceback
@@ -103,50 +105,98 @@ print('\\r\\nDemo session ended.', flush=True)
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
 
-    async def _read_process_output_async(self):
-        """Read output from the async process and queue it for WebSocket"""
-        if not self.process:
+    def _set_terminal_size(self):
+        """Set the terminal size using termios"""
+        try:
+            import termios
+            import struct
+            rows, cols = self.terminal_size
+            size = struct.pack("HHHH", rows, cols, 0, 0)
+            termios.tcsetattr(0, termios.TCSANOW, termios.tcgetattr(0))
+        except Exception as e:
+            print(f"Could not set terminal size: {e}")
+
+    async def _read_pty_output(self):
+        """Read output from the PTY and queue it for WebSocket"""
+        if not self.pty_fd:
             return
             
         try:
-            while self.is_running and self.process.returncode is None:
-                line = await self.process.stdout.readline()
-                if not line:  # EOF
+            # Make PTY non-blocking
+            import fcntl
+            flags = fcntl.fcntl(self.pty_fd, fcntl.F_GETFL)
+            fcntl.fcntl(self.pty_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+            
+            while self.is_running:
+                try:
+                    # Use asyncio to read from PTY without blocking
+                    data = await asyncio.get_event_loop().run_in_executor(
+                        None, self._read_pty_data
+                    )
+                    if data:
+                        await self.output_queue.put(data)
+                    else:
+                        # Small delay to prevent busy loop
+                        await asyncio.sleep(0.01)
+                except Exception as e:
+                    print(f"PTY read error: {e}")
                     break
-                decoded_line = line.decode(errors="ignore")
-                await self.output_queue.put(decoded_line)
+                    
         except Exception as e:
-            await self.output_queue.put(f"Error reading process output: {str(e)}\n")
+            await self.output_queue.put(f"Error reading PTY output: {str(e)}\n")
         finally:
             self.is_running = False
+            print(f"PTY output reader stopped for agent {self.agent_id}")
+
+    def _read_pty_data(self):
+        """Read data from PTY (blocking call - run in executor)"""
+        try:
+            return os.read(self.pty_fd, 1024).decode('utf-8', errors='ignore')
+        except (OSError, BlockingIOError):
+            return None
 
     async def send_input(self, data: str):
-        """Send input to the async process"""
-        if self.process and self.process.stdin:
+        """Send input to the PTY"""
+        if self.pty_fd:
             try:
-                print(f"Sending to subprocess: {repr(data)}")
-                message = (data + "\n").encode()
-                self.process.stdin.write(message)
-                await self.process.stdin.drain()
-                print(f"Sent and drained to subprocess")
+                print(f"Sending to PTY: {repr(data)}")
+                # Write directly to PTY
+                os.write(self.pty_fd, data.encode('utf-8'))
+                print(f"Sent to PTY successfully")
             except Exception as e:
-                print(f"Error sending input to subprocess: {e}")
+                print(f"Error sending input to PTY: {e}")
                 await self.output_queue.put(f"Error sending input: {str(e)}\n")
 
     async def stop(self):
         """Stop the agent process"""
         self.is_running = False
-        if self.process:
+        
+        # Close PTY
+        if self.pty_fd:
             try:
-                self.process.terminate()
+                os.close(self.pty_fd)
+                self.pty_fd = None
+            except Exception as e:
+                print(f"Error closing PTY: {e}")
+        
+        # Kill process
+        if self.process_pid:
+            try:
+                os.kill(self.process_pid, signal.SIGTERM)
+                # Wait a bit for graceful shutdown
+                await asyncio.sleep(1.0)
                 try:
-                    await asyncio.wait_for(self.process.wait(), timeout=5.0)
-                except asyncio.TimeoutError:
-                    self.process.kill()
-                    await self.process.wait()
+                    # Check if process is still running
+                    os.kill(self.process_pid, 0)  # This will raise exception if process is dead
+                    # Still running, force kill
+                    os.kill(self.process_pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    # Process already dead
+                    pass
             except Exception as e:
                 print(f"Error stopping process: {e}")
-            self.process = None
+            finally:
+                self.process_pid = None
 
     def get_status(self):
         """Get agent status"""
@@ -154,8 +204,10 @@ print('\\r\\nDemo session ended.', flush=True)
             "agent_id": self.agent_id,
             "is_running": self.is_running,
             "created_at": self.created_at.isoformat(),
-            "process_pid": self.process.pid if self.process else None,
+            "process_pid": self.process_pid,
             "output_queue_size": self.output_queue.qsize(),
+            "terminal_size": self.terminal_size,
+            "connected_clients": len(self.websockets),
         }
 
 

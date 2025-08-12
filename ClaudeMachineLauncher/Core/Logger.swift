@@ -5,6 +5,7 @@ enum LogCategory: String {
     case ui = "UI"
     case network = "Network"
     case system = "System"
+    case agent = "Agent"
 }
 
 struct Logger {
