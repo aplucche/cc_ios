@@ -135,6 +135,9 @@ class TerminalViewContainer: UIView {
         self.terminalView = SwiftTerm.TerminalView()
         super.init(frame: frame)
         
+        // Configure terminal for proper ANSI handling
+        terminalView.backgroundColor = UIColor.black
+        
         addSubview(terminalView)
         terminalView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([

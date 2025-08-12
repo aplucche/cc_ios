@@ -39,8 +39,8 @@ class AgentStreamingService: AgentStreamingServiceProtocol {
     
     init() {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 60
+        config.timeoutIntervalForRequest = 60  // Increased for longer connections
+        config.timeoutIntervalForResource = 3600  // 1 hour for long-lived WebSocket
         
         // Enhanced SSL/TLS configuration for Fly.io WebSocket compatibility
         // Based on research: iOS WebSockets prefer TLS 1.2 over 1.3 for compatibility
@@ -50,6 +50,10 @@ class AgentStreamingService: AgentStreamingServiceProtocol {
         config.allowsCellularAccess = true
         config.allowsConstrainedNetworkAccess = true
         config.allowsExpensiveNetworkAccess = true
+        
+        // WebSocket-specific settings
+        config.shouldUseExtendedBackgroundIdleMode = true
+        config.networkServiceType = .responsiveData
         
         self.urlSession = URLSession(configuration: config)
     }
@@ -93,6 +97,9 @@ class AgentStreamingService: AgentStreamingServiceProtocol {
         // Start listening for messages immediately to avoid missing server messages
         startListening()
         
+        // Start periodic heartbeat to keep connection alive
+        startHeartbeat()
+        
         // Brief wait to allow connection handshake
         try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds (reduced)
         
@@ -126,6 +133,20 @@ class AgentStreamingService: AgentStreamingServiceProtocol {
         Logger.log("Sent message to agent: \(message)", category: .network)
     }
     
+    private func startHeartbeat() {
+        Task {
+            while webSocketTask?.state == .running {
+                try? await Task.sleep(nanoseconds: 30_000_000_000) // 30 seconds
+                if webSocketTask?.state == .running {
+                    webSocketTask?.sendPing(pongReceiveHandler: { _ in
+                        Logger.log("WebSocket pong received", category: .network)
+                    })
+                    Logger.log("WebSocket heartbeat ping sent", category: .network)
+                }
+            }
+        }
+    }
+
     private func startListening() {
         guard let webSocketTask = webSocketTask else { return }
         
