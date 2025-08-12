@@ -43,11 +43,12 @@ class AgentProcess:
     async def start_process(self):
         """Start a real shell using PTY"""
         try:
-            # Check if claude-code is available, fallback to shell
+            # Check if claude-code is available and properly configured
             claude_available = await self._check_claude_availability()
             
-            if claude_available:
-                command = ["claude-code", "--interactive"]
+            if claude_available and await self._setup_claude_config():
+                # Use claude-code in interactive mode after proper setup
+                command = ["claude-code"]
             else:
                 # Use bash or fallback to sh
                 shell = os.getenv("SHELL", "/bin/bash")
@@ -82,9 +83,11 @@ class AgentProcess:
                     'CLICOLOR': '1'
                 })
                 
-                # Pass through Anthropic API key for Claude Code
+                # Pass through Anthropic API key and configure Claude Code
                 if 'ANTHROPIC_API_KEY' in os.environ:
                     env['ANTHROPIC_API_KEY'] = os.environ['ANTHROPIC_API_KEY']
+                    # Disable non-essential Claude Code traffic for container
+                    env['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'] = 'true'
                 
                 os.execvpe(command[0], command, env)
             else:
@@ -115,6 +118,55 @@ class AgentProcess:
             )
             return result.returncode == 0
         except (subprocess.TimeoutExpired, FileNotFoundError):
+            return False
+
+    async def _setup_claude_config(self) -> bool:
+        """Set up Claude Code configuration for API key authentication"""
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            debug_log("No ANTHROPIC_API_KEY provided, falling back to shell")
+            return False
+        
+        try:
+            # Create .claude directory if it doesn't exist
+            import pathlib
+            claude_dir = pathlib.Path.home() / ".claude"
+            claude_dir.mkdir(exist_ok=True)
+            
+            # Create configuration file for headless operation
+            config_file = claude_dir / "config.json"
+            config_data = {
+                "customApiKeyResponses": {
+                    "approved": [api_key[-20:]],  # Last 20 chars for approval
+                    "rejected": []
+                },
+                "hasCompletedOnboarding": True
+            }
+            
+            import json
+            with open(config_file, 'w') as f:
+                json.dump(config_data, f, indent=2)
+            
+            debug_log(f"Claude Code configuration created at {config_file}")
+            
+            # Test if claude-code works with our setup
+            test_result = subprocess.run(
+                ["claude-code", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                env={**os.environ, "ANTHROPIC_API_KEY": api_key}
+            )
+            
+            if test_result.returncode == 0:
+                debug_log(f"Claude Code API key authentication ready")
+                return True
+            else:
+                debug_log(f"Claude Code test failed: {test_result.stderr}")
+                return False
+                
+        except Exception as e:
+            debug_log(f"Claude Code setup error: {e}")
             return False
 
     def _set_terminal_size(self, rows=None, cols=None):
