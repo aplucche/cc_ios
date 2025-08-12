@@ -50,22 +50,30 @@ class AgentProcess:
             else:
                 # Fallback to demo shell for testing
                 self.process = subprocess.Popen(
-                    ["python", "-c", """
+                    ["python", "-u", "-c", """
 import sys
 import time
 
-print('Claude Agent Terminal Ready (Demo Mode)')
-print('Agent ID: {agent_id}')
-print('Type commands or send messages...')
+print('Claude Agent Terminal Ready (Demo Mode)', flush=True)
+print('Agent ID: {agent_id}', flush=True)
+print('Type commands or send messages...', flush=True)
+print('claude> ', end='', flush=True)
 
 while True:
     try:
         line = sys.stdin.readline()
-        if not line or line.strip() == 'exit':
+        if not line:
             break
-        print('Echo: ' + line.strip(), flush=True)
+        line = line.strip()
+        if line == 'exit':
+            break
+        if line:
+            print('\\r\\nEcho: ' + line, flush=True)
+        print('claude> ', end='', flush=True)
     except (EOFError, KeyboardInterrupt):
         break
+        
+print('\\r\\nDemo session ended.', flush=True)
 """.format(agent_id=self.agent_id)],
                     stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
@@ -118,9 +126,12 @@ while True:
         """Send input to the process"""
         if self.process and self.process.stdin:
             try:
+                print(f"Sending to subprocess: {repr(data)}")
                 self.process.stdin.write(data + "\n")
                 self.process.stdin.flush()
+                print(f"Sent and flushed to subprocess")
             except Exception as e:
+                print(f"Error sending input to subprocess: {e}")
                 await self.output_queue.put(f"Error sending input: {str(e)}\n")
 
     async def stop(self):
