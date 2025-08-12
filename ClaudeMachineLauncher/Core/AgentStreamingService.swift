@@ -41,6 +41,16 @@ class AgentStreamingService: AgentStreamingServiceProtocol {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 60
+        
+        // Enhanced SSL/TLS configuration for Fly.io WebSocket compatibility
+        // Based on research: iOS WebSockets prefer TLS 1.2 over 1.3 for compatibility
+        config.tlsMinimumSupportedProtocolVersion = .TLSv12
+        config.tlsMaximumSupportedProtocolVersion = .TLSv12  // Force TLS 1.2 for WebSockets
+        config.waitsForConnectivity = true
+        config.allowsCellularAccess = true
+        config.allowsConstrainedNetworkAccess = true
+        config.allowsExpensiveNetworkAccess = true
+        
         self.urlSession = URLSession(configuration: config)
     }
     
@@ -64,17 +74,32 @@ class AgentStreamingService: AgentStreamingServiceProtocol {
             throw error
         }
         
-        // Create WebSocket request with auth header
+        // Create WebSocket request with auth header and enhanced configuration
         var request = URLRequest(url: wsURL)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("websocket", forHTTPHeaderField: "Upgrade")
+        request.setValue("Upgrade", forHTTPHeaderField: "Connection")
+        request.setValue("13", forHTTPHeaderField: "Sec-WebSocket-Version")
+        request.setValue("ClaudeApp/1.0 iOS", forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 30
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         
         // Create WebSocket task
         webSocketTask = urlSession.webSocketTask(with: request)
         webSocketTask?.resume()
         
-        // Start listening for messages
+        // Start listening for messages immediately to avoid missing server messages
         startListening()
+        
+        // Brief wait to allow connection handshake
+        try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds (reduced)
+        
+        // Verify the connection is still running
+        guard let task = webSocketTask, task.state == .running else {
+            let error = AgentStreamingError.connectionLost
+            connectionStateSubject.send(.failed(error))
+            throw error
+        }
         
         connectionStateSubject.send(.connected)
         Logger.log("WebSocket connection established", category: .network)
@@ -104,11 +129,14 @@ class AgentStreamingService: AgentStreamingServiceProtocol {
         
         Task {
             do {
+                Logger.log("Started listening for WebSocket messages", category: .network)
                 while webSocketTask.state == .running {
                     let message = try await webSocketTask.receive()
                     await handleMessage(message)
                 }
+                Logger.log("WebSocket listening stopped - state: \(webSocketTask.state)", category: .network)
             } catch {
+                Logger.log("WebSocket listening error: \(error)", category: .network)
                 await handleError(error)
             }
         }
@@ -134,6 +162,16 @@ class AgentStreamingService: AgentStreamingServiceProtocol {
     @MainActor
     private func handleError(_ error: Error) {
         Logger.log("WebSocket error: \(error.localizedDescription)", category: .network)
+        
+        // Provide specific SSL error handling
+        if let nsError = error as NSError? {
+            if nsError.code == -1200 { // SSL error
+                Logger.log("SSL/TLS error detected - certificate or protocol issue", category: .network)
+            } else if nsError.code == -9816 { // Network connection lost
+                Logger.log("Network connection lost during WebSocket communication", category: .network)
+            }
+        }
+        
         connectionStateSubject.send(.failed(error))
         
         // Attempt to reconnect after a delay

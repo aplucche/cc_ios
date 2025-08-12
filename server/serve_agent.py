@@ -60,10 +60,10 @@ print('Type commands or send messages...')
 
 while True:
     try:
-        line = input('claude> ')
-        if line.strip() == 'exit':
+        line = sys.stdin.readline()
+        if not line or line.strip() == 'exit':
             break
-        print(f'Echo: {line}')
+        print('Echo: ' + line.strip(), flush=True)
     except (EOFError, KeyboardInterrupt):
         break
 """.format(agent_id=self.agent_id)],
@@ -80,7 +80,10 @@ while True:
             asyncio.create_task(self._read_process_output())
             
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to start agent: {str(e)}")
+            print(f"Agent start error: {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=f"Failed to start agent: {type(e).__name__}: {str(e)}")
 
     async def _check_claude_availability(self) -> bool:
         """Check if claude-code CLI is available"""
@@ -193,7 +196,8 @@ async def websocket_endpoint(websocket: WebSocket, agent_id: str):
     except WebSocketDisconnect:
         if agent_id in agents:
             agents[agent_id].websocket = None
-        output_task.cancel() if 'output_task' in locals() else None
+        if 'output_task' in locals() and output_task:
+            output_task.cancel()
     except Exception as e:
         await websocket.send_text(f"Error: {str(e)}\r\n")
         await websocket.close()
@@ -211,9 +215,10 @@ async def send_output_to_websocket(agent: AgentProcess, websocket: WebSocket):
                 # Send periodic heartbeat
                 continue
             except Exception as e:
+                print(f"Error sending output to websocket: {e}")
                 break
     except Exception as e:
-        pass
+        print(f"WebSocket output task error: {e}")
 
 
 @app.get("/agents/{agent_id}/status")
@@ -265,4 +270,5 @@ async def list_agents(token: str = Depends(verify_token)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    port = int(os.getenv("PORT", 8080))
+    uvicorn.run(app, host="0.0.0.0", port=port)

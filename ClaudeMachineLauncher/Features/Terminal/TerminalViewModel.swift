@@ -115,8 +115,7 @@ class TerminalViewModel: ObservableObject {
     }
     
     private func setupTerminalDelegate() {
-        // TODO: Implement TerminalViewDelegate properly
-        // terminalView?.terminalDelegate = self
+        terminalView?.terminalDelegate = self
     }
     
     // Legacy connect method - now handled automatically by SessionManager
@@ -146,30 +145,60 @@ class TerminalViewModel: ObservableObject {
 }
 
 // MARK: - TerminalViewDelegate
-// TODO: Uncomment when we determine correct protocol methods
-/*
 extension TerminalViewModel: TerminalViewDelegate {
-    func send(source: TerminalView, data: ArraySlice<UInt8>) {
+    func send(source: SwiftTerm.TerminalView, data: ArraySlice<UInt8>) {
         let string = String(bytes: data, encoding: .utf8) ?? ""
+        Logger.log("Terminal input: '\(string)'", category: .ui)
         sendInput(string)
     }
     
-    func scrolled(source: TerminalView, position: Double) {
+    func scrolled(source: SwiftTerm.TerminalView, position: Double) {
         // Handle scroll events if needed
     }
     
-    func setTerminalTitle(source: TerminalView, title: String) {
+    func setTerminalTitle(source: SwiftTerm.TerminalView, title: String) {
         Logger.log("Terminal title: \(title)", category: .ui)
     }
     
-    func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
+    func sizeChanged(source: SwiftTerm.TerminalView, newCols: Int, newRows: Int) {
         Logger.log("Terminal size: \(newCols)x\(newRows)", category: .ui)
+        // TODO: Consider notifying remote end of size change if protocol supports it
     }
     
-    func clipboardCopy(source: TerminalView, content: Data) {
+    func clipboardCopy(source: SwiftTerm.TerminalView, content: Data) {
         if let string = String(data: content, encoding: .utf8) {
             UIPasteboard.general.string = string
+            Logger.log("Copied to clipboard: \(string.prefix(50))", category: .ui)
         }
     }
+    
+    func hostCurrentDirectoryUpdate(source: SwiftTerm.TerminalView, directory: String?) {
+        if let directory = directory {
+            Logger.log("Directory changed: \(directory)", category: .ui)
+        }
+    }
+    
+    func requestOpenLink(source: SwiftTerm.TerminalView, link: String, params: [String:String]) {
+        Logger.log("Link requested: \(link)", category: .ui)
+        if let fixedup = link.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            if let url = URL(string: fixedup) {
+                UIApplication.shared.open(url)
+            }
+        }
+    }
+    
+    func bell(source: SwiftTerm.TerminalView) {
+        Logger.log("Terminal bell", category: .ui)
+        // Could add haptic feedback here if desired
+    }
+    
+    func iTermContent(source: SwiftTerm.TerminalView, content: ArraySlice<UInt8>) {
+        // Handle iTerm-specific content if needed
+        Logger.log("iTerm content received: \(content.count) bytes", category: .ui)
+    }
+    
+    func rangeChanged(source: SwiftTerm.TerminalView, startY: Int, endY: Int) {
+        // Handle terminal buffer range changes
+        Logger.log("Range changed: \(startY)-\(endY)", category: .ui)
+    }
 }
-*/
