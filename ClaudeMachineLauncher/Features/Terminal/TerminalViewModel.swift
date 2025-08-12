@@ -15,17 +15,8 @@ class TerminalViewModel: ObservableObject {
     private var sessionCancellables = Set<AnyCancellable>()
     private var messageBuffer: [String] = []
     
-    // Legacy properties for backward compatibility
-    @Published var host: String = ""
-    @Published var agentId: String = "default"
-    @Published var authToken: String = ""
-    
     init() {
         setupBindings()
-    }
-    
-    var canConnect: Bool {
-        !host.isEmpty && !agentId.isEmpty && !authToken.isEmpty && !isConnecting
     }
     
     private func setupBindings() {
@@ -58,28 +49,17 @@ class TerminalViewModel: ObservableObject {
         // This will be called whenever active session changes
         SessionManager.shared.$activeSessionId
             .compactMap { (sessionId: String?) -> MachineSession? in
-                guard let sessionId = sessionId else {
-                    Logger.log("No active session ID", category: .ui)
-                    return nil
-                }
-                let session = SessionManager.shared.activeSessions[sessionId]
-                if session == nil {
-                    Logger.log("No session found for ID: \(sessionId)", category: .ui)
-                }
-                return session
+                guard let sessionId = sessionId else { return nil }
+                return SessionManager.shared.activeSessions[sessionId]
             }
             .receive(on: DispatchQueue.main)
             .sink { [weak self] (session: MachineSession) in
-                Logger.log("Active session changed, binding to new session", category: .ui)
                 self?.bindToSession(session)
             }
             .store(in: &cancellables)
     }
     
     private func bindToSession(_ session: MachineSession) {
-        Logger.log("Binding to session for machine: \(session.machine.id)", category: .ui)
-        
-        // Clear existing session bindings to avoid duplicates
         sessionCancellables.removeAll()
         
         // Bind to session's streaming service
@@ -117,18 +97,14 @@ class TerminalViewModel: ObservableObject {
     
     private func handleIncomingMessage(_ message: String) {
         if let terminalView = terminalView {
-            Logger.log("Feeding message to SwiftTerm", category: .ui)
             terminalView.feed(text: message)
         } else {
-            Logger.log("TerminalView not available - buffering message", category: .ui)
             messageBuffer.append(message)
         }
     }
     
     private func replayBufferedMessages() {
         guard !messageBuffer.isEmpty else { return }
-        
-        Logger.log("Replaying \(messageBuffer.count) buffered messages", category: .ui)
         for message in messageBuffer {
             terminalView?.feed(text: message)
         }
@@ -147,11 +123,8 @@ class TerminalViewModel: ObservableObject {
     }
     
     func setTerminalView(_ terminalView: SwiftTerm.TerminalView) {
-        Logger.log("Setting terminal view in TerminalViewModel", category: .ui)
         self.terminalView = terminalView
         setupTerminalDelegate()
-        
-        // Replay any buffered messages immediately
         replayBufferedMessages()
     }
     
@@ -159,13 +132,8 @@ class TerminalViewModel: ObservableObject {
         terminalView?.terminalDelegate = self
     }
     
-    // Legacy connect method - now handled automatically by SessionManager
-    func connect() {
-        Logger.log("Legacy connect called - sessions managed automatically", category: .network)
-    }
     
     func disconnect() {
-        Logger.log("Disconnecting active session", category: .network)
         if let activeId = activeSessionId {
             SessionManager.shared.disconnectSession(machineId: activeId)
         }
@@ -213,61 +181,42 @@ extension TerminalViewModel: TerminalViewDelegate {
     }
     
     func setTerminalTitle(source: SwiftTerm.TerminalView, title: String) {
-        Logger.log("Terminal title: \(title)", category: .ui)
+        // Terminal title changes - could be used for UI updates if needed
     }
     
     func sizeChanged(source: SwiftTerm.TerminalView, newCols: Int, newRows: Int) {
-        // Only log meaningful size changes (ignore 0x0 during initialization)
-        if newCols > 0 && newRows > 0 {
-            Logger.log("Terminal size: \(newCols)x\(newRows)", category: .ui)
-            
-            // Send size change to server
-            Task {
-                do {
-                    let sizeMessage = "{\"type\":\"resize\",\"rows\":\(newRows),\"cols\":\(newCols)}"
-                    try await SessionManager.shared.sendToActiveSession(sizeMessage)
-                    Logger.log("Sent terminal size to server: \(newCols)x\(newRows)", category: .ui)
-                } catch {
-                    Logger.log("Failed to send terminal size: \(error)", category: .ui)
-                }
-            }
+        guard newCols > 0 && newRows > 0 else { return }
+        
+        Task {
+            let sizeMessage = "{\"type\":\"resize\",\"rows\":\(newRows),\"cols\":\(newCols)}"
+            try? await SessionManager.shared.sendToActiveSession(sizeMessage)
         }
     }
     
     func clipboardCopy(source: SwiftTerm.TerminalView, content: Data) {
-        if let string = String(data: content, encoding: .utf8) {
-            UIPasteboard.general.string = string
-            Logger.log("Copied to clipboard: \(string.prefix(50))", category: .ui)
-        }
+        UIPasteboard.general.string = String(data: content, encoding: .utf8)
     }
     
     func hostCurrentDirectoryUpdate(source: SwiftTerm.TerminalView, directory: String?) {
-        if let directory = directory {
-            Logger.log("Directory changed: \(directory)", category: .ui)
-        }
+        // Directory changes - could update UI if needed
     }
     
     func requestOpenLink(source: SwiftTerm.TerminalView, link: String, params: [String:String]) {
-        Logger.log("Link requested: \(link)", category: .ui)
-        if let fixedup = link.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            if let url = URL(string: fixedup) {
-                UIApplication.shared.open(url)
-            }
+        if let fixedup = link.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+           let url = URL(string: fixedup) {
+            UIApplication.shared.open(url)
         }
     }
     
     func bell(source: SwiftTerm.TerminalView) {
-        Logger.log("Terminal bell", category: .ui)
-        // Could add haptic feedback here if desired
+        // Terminal bell - could add haptic feedback
     }
     
     func iTermContent(source: SwiftTerm.TerminalView, content: ArraySlice<UInt8>) {
-        // Handle iTerm-specific content if needed
-        Logger.log("iTerm content received: \(content.count) bytes", category: .ui)
+        // iTerm-specific content handling
     }
     
     func rangeChanged(source: SwiftTerm.TerminalView, startY: Int, endY: Int) {
-        // Handle terminal buffer range changes
-        Logger.log("Range changed: \(startY)-\(endY)", category: .ui)
+        // Terminal buffer range changes
     }
 }

@@ -10,19 +10,19 @@ enum LogCategory: String {
 
 struct Logger {
     private static let subsystem = "com.claudemachinelauncher"
+    static let debugEnabled = ProcessInfo.processInfo.environment["DEBUG_LOGGING"] != nil
     
     private static func osLog(for category: LogCategory) -> OSLog {
         return OSLog(subsystem: subsystem, category: category.rawValue)
     }
     
     static func log(_ message: String, category: LogCategory) {
+        guard debugEnabled else { return }
+        
         let timestamp = DateFormatter.logFormatter.string(from: Date())
         let logMessage = "[\(timestamp)] \(category.rawValue): \(message)"
         
-        // Log to system log (Xcode will display this)
         os_log("%{public}@", log: osLog(for: category), type: .default, logMessage)
-        
-        // Store in memory for potential in-app viewing
         LogStore.shared.add(logMessage)
     }
 }

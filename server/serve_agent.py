@@ -12,6 +12,13 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depe
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
+DEBUG = os.getenv("DEBUG_LOGGING") is not None
+
+def debug_log(message: str):
+    """Debug logging that can be toggled off"""
+    if DEBUG:
+        print(message)
+
 
 app = FastAPI(title="Claude Agent Server", version="1.0.0")
 security = HTTPBearer()
@@ -48,7 +55,7 @@ class AgentProcess:
                     shell = "/bin/sh"
                 command = [shell, "-i"]  # Interactive shell
             
-            print(f"Starting shell: {' '.join(command)}")
+            debug_log(f"Starting shell: {' '.join(command)}")
             
             # Create PTY and fork process
             self.pty_fd, child_fd = pty.openpty()
@@ -84,12 +91,13 @@ class AgentProcess:
                 # Start background task to read PTY output
                 asyncio.create_task(self._read_pty_output())
                 
-                print(f"Started shell process PID: {self.process_pid}")
+                debug_log(f"Started shell process PID: {self.process_pid}")
                 
         except Exception as e:
-            print(f"Agent start error: {type(e).__name__}: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            debug_log(f"Agent start error: {type(e).__name__}: {str(e)}")
+            if DEBUG:
+                import traceback
+                traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"Failed to start agent: {type(e).__name__}: {str(e)}")
 
     async def _check_claude_availability(self) -> bool:
@@ -125,9 +133,9 @@ class AgentProcess:
                 if self.process_pid:
                     os.kill(self.process_pid, signal.SIGWINCH)
                     
-            print(f"Terminal size set to: {cols}x{rows}")
+            debug_log(f"Terminal size set to: {cols}x{rows}")
         except Exception as e:
-            print(f"Could not set terminal size: {e}")
+            debug_log(f"Could not set terminal size: {e}")
 
     async def _read_pty_output(self):
         """Read output from the PTY and queue it for WebSocket"""
@@ -152,14 +160,14 @@ class AgentProcess:
                         # Small delay to prevent busy loop
                         await asyncio.sleep(0.01)
                 except Exception as e:
-                    print(f"PTY read error: {e}")
+                    debug_log(f"PTY read error: {e}")
                     break
                     
         except Exception as e:
             await self.output_queue.put(f"Error reading PTY output: {str(e)}\n")
         finally:
             self.is_running = False
-            print(f"PTY output reader stopped for agent {self.agent_id}")
+            debug_log(f"PTY output reader stopped for agent {self.agent_id}")
 
     def _read_pty_data(self):
         """Read data from PTY (blocking call - run in executor)"""
@@ -172,12 +180,11 @@ class AgentProcess:
         """Send input to the PTY"""
         if self.pty_fd:
             try:
-                print(f"Sending to PTY: {repr(data)}")
-                # Write directly to PTY
+                debug_log(f"Sending to PTY: {repr(data)}")
                 os.write(self.pty_fd, data.encode('utf-8'))
-                print(f"Sent to PTY successfully")
+                debug_log(f"Sent to PTY successfully")
             except Exception as e:
-                print(f"Error sending input to PTY: {e}")
+                debug_log(f"Error sending input to PTY: {e}")
                 await self.output_queue.put(f"Error sending input: {str(e)}\n")
 
     async def stop(self):
@@ -190,24 +197,20 @@ class AgentProcess:
                 os.close(self.pty_fd)
                 self.pty_fd = None
             except Exception as e:
-                print(f"Error closing PTY: {e}")
+                debug_log(f"Error closing PTY: {e}")
         
         # Kill process
         if self.process_pid:
             try:
                 os.kill(self.process_pid, signal.SIGTERM)
-                # Wait a bit for graceful shutdown
                 await asyncio.sleep(1.0)
                 try:
-                    # Check if process is still running
-                    os.kill(self.process_pid, 0)  # This will raise exception if process is dead
-                    # Still running, force kill
+                    os.kill(self.process_pid, 0)
                     os.kill(self.process_pid, signal.SIGKILL)
                 except ProcessLookupError:
-                    # Process already dead
                     pass
             except Exception as e:
-                print(f"Error stopping process: {e}")
+                debug_log(f"Error stopping process: {e}")
             finally:
                 self.process_pid = None
 
@@ -282,7 +285,7 @@ async def websocket_endpoint(websocket: WebSocket, agent_id: str):
                         cols = message.get("cols")
                         if rows and cols:
                             agent._set_terminal_size(rows, cols)
-                            print(f"Terminal resized to {cols}x{rows}")
+                            debug_log(f"Terminal resized to {cols}x{rows}")
                             continue
                 except json.JSONDecodeError:
                     pass  # Not JSON, treat as regular input
@@ -314,8 +317,7 @@ async def send_output_to_websocket(agent: AgentProcess):
                 for ws in list(agent.websockets):
                     try:
                         await ws.send_text(formatted_output)
-                    except Exception as e:
-                        print(f"Error sending to websocket: {e}")
+                    except Exception:
                         dead_websockets.append(ws)
                 
                 # Remove dead websockets
@@ -323,15 +325,14 @@ async def send_output_to_websocket(agent: AgentProcess):
                     agent.websockets.discard(ws)
                     
             except asyncio.TimeoutError:
-                # Continue waiting for output
                 continue
             except Exception as e:
-                print(f"Error in output queue processing: {e}")
+                debug_log(f"Error in output queue processing: {e}")
                 break
     except Exception as e:
-        print(f"WebSocket output task error: {e}")
+        debug_log(f"WebSocket output task error: {e}")
     
-    print(f"Output task ended for agent {agent.agent_id}")
+    debug_log(f"Output task ended for agent {agent.agent_id}")
 
 
 @app.get("/agents/{agent_id}/status")
