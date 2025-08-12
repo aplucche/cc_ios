@@ -220,7 +220,17 @@ extension TerminalViewModel: TerminalViewDelegate {
         // Only log meaningful size changes (ignore 0x0 during initialization)
         if newCols > 0 && newRows > 0 {
             Logger.log("Terminal size: \(newCols)x\(newRows)", category: .ui)
-            // TODO: Consider notifying remote end of size change if protocol supports it
+            
+            // Send size change to server
+            Task {
+                do {
+                    let sizeMessage = "{\"type\":\"resize\",\"rows\":\(newRows),\"cols\":\(newCols)}"
+                    try await SessionManager.shared.sendToActiveSession(sizeMessage)
+                    Logger.log("Sent terminal size to server: \(newCols)x\(newRows)", category: .ui)
+                } catch {
+                    Logger.log("Failed to send terminal size: \(error)", category: .ui)
+                }
+            }
         }
     }
     

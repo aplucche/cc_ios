@@ -105,14 +105,27 @@ class AgentProcess:
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
 
-    def _set_terminal_size(self):
+    def _set_terminal_size(self, rows=None, cols=None):
         """Set the terminal size using termios"""
+        if rows and cols:
+            self.terminal_size = (rows, cols)
+        
         try:
             import termios
             import struct
+            import fcntl
             rows, cols = self.terminal_size
-            size = struct.pack("HHHH", rows, cols, 0, 0)
-            termios.tcsetattr(0, termios.TCSANOW, termios.tcgetattr(0))
+            
+            # Set terminal size on PTY
+            if self.pty_fd:
+                size = struct.pack("HHHH", rows, cols, 0, 0)
+                fcntl.ioctl(self.pty_fd, termios.TIOCSWINSZ, size)
+                
+                # Send SIGWINCH to notify shell of size change
+                if self.process_pid:
+                    os.kill(self.process_pid, signal.SIGWINCH)
+                    
+            print(f"Terminal size set to: {cols}x{rows}")
         except Exception as e:
             print(f"Could not set terminal size: {e}")
 
@@ -258,6 +271,23 @@ async def websocket_endpoint(websocket: WebSocket, agent_id: str):
         # Handle incoming messages from WebSocket
         while True:
             data = await websocket.receive_text()
+            
+            # Check if it's a control message (JSON)
+            if data.startswith("{") and data.endswith("}"):
+                try:
+                    import json
+                    message = json.loads(data)
+                    if message.get("type") == "resize":
+                        rows = message.get("rows")
+                        cols = message.get("cols")
+                        if rows and cols:
+                            agent._set_terminal_size(rows, cols)
+                            print(f"Terminal resized to {cols}x{rows}")
+                            continue
+                except json.JSONDecodeError:
+                    pass  # Not JSON, treat as regular input
+            
+            # Regular terminal input
             await agent.send_input(data)
             
     except WebSocketDisconnect:
