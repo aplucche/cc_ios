@@ -80,7 +80,6 @@ struct FlyLaunchViewModelTests {
     @Test func testInitialState() {
         let viewModel = FlyLaunchViewModel()
         
-        #expect(viewModel.flyAPIToken.isEmpty)
         #expect(viewModel.appName == "claudeagents")
         #expect(viewModel.image == "ghcr.io/aplucche/cc_ios-claude-agent:latest")
         #expect(viewModel.region == "ord")
@@ -90,14 +89,22 @@ struct FlyLaunchViewModelTests {
     }
     
     @Test func testCanLaunch() {
+        // Clear any existing keys first
+        SettingsViewModel.shared.clearAPIKeys()
+        
         let viewModel = FlyLaunchViewModel()
         
         #expect(!viewModel.canLaunch)
         
-        viewModel.flyAPIToken = "token"
+        // Set API keys through Settings
+        SettingsViewModel.shared.flyAPIToken = "test-token"
+        SettingsViewModel.shared.claudeAPIKey = "test-claude-key"
         viewModel.appName = "test-app"
         
         #expect(viewModel.canLaunch)
+        
+        // Cleanup
+        SettingsViewModel.shared.clearAPIKeys()
     }
     
     @Test func testSuccessfulLaunch() async throws {
@@ -116,7 +123,9 @@ struct FlyLaunchViewModelTests {
         mockService.shouldSucceed = true
         
         let viewModel = FlyLaunchViewModel(service: mockService)
-        viewModel.flyAPIToken = "test-token"
+        // Set API key through Settings
+        SettingsViewModel.shared.flyAPIToken = "test-token"
+        SettingsViewModel.shared.claudeAPIKey = "test-claude-key"
         viewModel.appName = "test-app"
         
         viewModel.launchMachine()

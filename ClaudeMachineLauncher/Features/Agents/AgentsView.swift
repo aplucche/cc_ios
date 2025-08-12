@@ -4,6 +4,7 @@ struct AgentsView: View {
     @StateObject private var viewModel = FlyLaunchViewModel()
     @StateObject private var appState = AppStateManager.shared
     @StateObject private var sessionManager = SessionManager.shared
+    @StateObject private var settings = SettingsViewModel.shared
     
     var body: some View {
         NavigationView {
@@ -41,8 +42,23 @@ struct AgentsView: View {
     private var configurationSection: some View {
         GroupBox("Configuration") {
             VStack(spacing: 16) {
-                SecureField("Fly API Token", text: $viewModel.flyAPIToken)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                if !settings.hasRequiredAPIKeys {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                        Text("Please add API keys in Settings")
+                            .foregroundColor(.orange)
+                        Spacer()
+                    }
+                } else {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("API keys configured")
+                            .foregroundColor(.green)
+                        Spacer()
+                    }
+                }
                 
                 TextField("App Name", text: $viewModel.appName)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -62,9 +78,6 @@ struct AgentsView: View {
                     }
                     .pickerStyle(MenuPickerStyle())
                 }
-                
-                SecureField("Claude API Key (Optional)", text: $viewModel.claudeAPIKey)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
             }
             .padding(.vertical, 8)
         }

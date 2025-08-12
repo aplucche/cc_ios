@@ -2,11 +2,9 @@ import Foundation
 import Combine
 
 class FlyLaunchViewModel: ObservableObject {
-    @Published var flyAPIToken: String = ""
     @Published var appName: String = "claudeagents"
     @Published var image: String = "ghcr.io/aplucche/cc_ios-claude-agent:latest"
     @Published var region: String = "ord"
-    @Published var claudeAPIKey: String = ""
     
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
@@ -14,6 +12,7 @@ class FlyLaunchViewModel: ObservableObject {
     @Published var statusMessage: String = ""
     
     private let service: FlyLaunchServiceProtocol
+    private let settings = SettingsViewModel.shared
     private var cancellables = Set<AnyCancellable>()
     
     init(service: FlyLaunchServiceProtocol = FlyLaunchService()) {
@@ -21,7 +20,7 @@ class FlyLaunchViewModel: ObservableObject {
     }
     
     var canLaunch: Bool {
-        !flyAPIToken.isEmpty && !appName.isEmpty && !image.isEmpty && !isLoading
+        settings.hasRequiredAPIKeys && !appName.isEmpty && !image.isEmpty && !isLoading
     }
     
     func launchMachine() {
@@ -43,7 +42,7 @@ class FlyLaunchViewModel: ObservableObject {
         
         statusMessage = "Starting deployment..."
         
-        service.launchMachine(config: config, token: flyAPIToken)
+        service.launchMachine(config: config, token: settings.flyAPIToken)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { [weak self] completion in
@@ -61,21 +60,21 @@ class FlyLaunchViewModel: ObservableObject {
                     self?.statusMessage = ""
                     
                     // Add machine to multi-session management
-                    AppStateManager.shared.addMachine(machine, appName: self?.appName ?? "", token: self?.flyAPIToken ?? "")
+                    AppStateManager.shared.addMachine(machine, appName: self?.appName ?? "", token: self?.settings.flyAPIToken ?? "")
                 }
             )
             .store(in: &cancellables)
     }
     
     func refreshStatus() {
-        guard let machine = launchedMachine, !flyAPIToken.isEmpty else { 
+        guard let machine = launchedMachine, !settings.flyAPIToken.isEmpty else { 
             Logger.log("Status refresh blocked - no machine or token", category: .ui)
             return 
         }
         
         Logger.log("User refreshing status for machine: \(machine.id)", category: .ui)
         
-        service.getMachineStatus(appName: appName, machineId: machine.id, token: flyAPIToken)
+        service.getMachineStatus(appName: appName, machineId: machine.id, token: settings.flyAPIToken)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { [weak self] completion in

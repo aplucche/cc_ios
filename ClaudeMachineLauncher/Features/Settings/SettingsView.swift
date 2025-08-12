@@ -1,11 +1,12 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @StateObject private var viewModel = SettingsViewModel()
+    @StateObject private var viewModel = SettingsViewModel.shared
     
     var body: some View {
         NavigationView {
             Form {
+                apiKeysSection
                 flySection
                 claudeSection
                 aboutSection
@@ -14,11 +15,33 @@ struct SettingsView: View {
         }
     }
     
-    private var flySection: some View {
-        Section("Fly.io Configuration") {
+    private var apiKeysSection: some View {
+        Section("API Keys") {
             SecureField("Fly API Token", text: $viewModel.flyAPIToken)
                 .textInputAutocapitalization(.never)
             
+            SecureField("Claude API Key", text: $viewModel.claudeAPIKey)
+                .textInputAutocapitalization(.never)
+            
+            if viewModel.hasRequiredAPIKeys {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text("Saved securely")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Button("Clear API Keys", role: .destructive) {
+                viewModel.clearAPIKeys()
+            }
+            .disabled(!viewModel.hasRequiredAPIKeys)
+        }
+    }
+    
+    private var flySection: some View {
+        Section("Fly.io Configuration") {
             TextField("Default App Name", text: $viewModel.defaultAppName)
                 .textInputAutocapitalization(.never)
             
@@ -38,9 +61,6 @@ struct SettingsView: View {
     
     private var claudeSection: some View {
         Section("Claude Configuration") {
-            SecureField("Claude API Key", text: $viewModel.claudeAPIKey)
-                .textInputAutocapitalization(.never)
-            
             Toggle("Auto-launch Claude on machine start", isOn: $viewModel.autoLaunchClaude)
         }
     }
