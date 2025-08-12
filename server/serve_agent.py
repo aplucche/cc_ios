@@ -82,6 +82,10 @@ class AgentProcess:
                     'CLICOLOR': '1'
                 })
                 
+                # Pass through Anthropic API key for Claude Code
+                if 'ANTHROPIC_API_KEY' in os.environ:
+                    env['ANTHROPIC_API_KEY'] = os.environ['ANTHROPIC_API_KEY']
+                
                 os.execvpe(command[0], command, env)
             else:
                 # Parent process

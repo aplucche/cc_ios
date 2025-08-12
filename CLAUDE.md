@@ -100,12 +100,15 @@ ClaudeMachineLauncher/
 
 ### Complete Integration Flow
 1. **Agents Tab**: Launch Fly.io machine using Fly.io REST API with our custom claude-agent container
-2. **Get Machine URL**: Launched machine endpoint is `{machine-id}.{app-name}.fly.dev`
-3. **Terminal Tab**: Auto-populated with machine URL, connect via WebSocket to PTY-based shell
-4. **Real Terminal**: Direct bidirectional communication with bash/zsh running in launched container
+2. **Claude Code Integration**: Container automatically detects and launches Claude Code CLI with API key
+3. **Get Machine URL**: Launched machine endpoint is `{machine-id}.{app-name}.fly.dev`
+4. **Terminal Tab**: Auto-populated with machine URL, connect via WebSocket to PTY-based Claude Code or shell
+5. **Real Terminal**: Direct bidirectional communication with Claude Code CLI or bash/zsh fallback
 
 ### PTY-Based Terminal Architecture
-- **Real Shell**: Container runs actual bash/zsh via Python PTY (pseudo-terminal)
+- **Claude Code Integration**: Container auto-detects and launches `claude-code --interactive` when available
+- **Intelligent Fallback**: Falls back to bash/zsh if Claude Code unavailable or fails
+- **API Key Security**: Anthropic API key passed securely via environment variables from iOS Keychain
 - **Full Terminal Features**: Command history, tab completion, ANSI colors, line editing
 - **WebSocket Bridge**: PTY output → WebSocket → iOS, iOS input → WebSocket → PTY
 - **Terminal Resizing**: iOS sends resize messages, server updates PTY window size with SIGWINCH
@@ -114,9 +117,11 @@ ClaudeMachineLauncher/
 ### Key Points
 - **No Fly CLI needed**: App uses Fly.io REST API directly
 - **Container Image**: Default is `ghcr.io/aplucche/cc_ios-claude-agent:latest` 
+- **Claude Code Ready**: Container includes Claude Code CLI v1.0.77 with native installation
+- **API Key Integration**: Anthropic API key automatically passed from iOS Settings to container
 - **Multi-Session Architecture**: SessionManager handles multiple persistent WebSocket connections
 - **Background Persistence**: Terminal sessions continue running when switching between agents
-- **Terminal Access**: Command-line interface for container interaction
+- **Smart Terminal**: Claude Code when available, shell fallback for reliability
 
 ---
 

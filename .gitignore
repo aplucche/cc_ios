@@ -1,6 +1,7 @@
 # Xcode
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
 *.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
 *.xcodeproj/project.pbxproj
 
@@ -29,3 +30,10 @@ fastlane/test_output
 
 # macOS
 .DS_Store
+
+# Python/uv artifacts
+*.egg-info/
+uv.lock
+.venv/
+__pycache__/
+*.pyc

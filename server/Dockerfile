@@ -1,7 +1,16 @@
 FROM python:3.11-slim
 
-# Install dependencies
+# Install dependencies including curl for Claude Code installation
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
 RUN pip install --no-cache-dir fastapi uvicorn requests websockets python-multipart
+
+# Install Claude Code CLI using native installer
+RUN curl -fsSL https://claude.ai/install.sh | bash \
+    && ln -sf ~/.local/bin/claude /usr/local/bin/claude
 
 # Create app directory
 WORKDIR /app

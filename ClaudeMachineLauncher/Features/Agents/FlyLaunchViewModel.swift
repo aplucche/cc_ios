@@ -31,10 +31,19 @@ class FlyLaunchViewModel: ObservableObject {
         
         Logger.log("User initiated machine launch for app: \(appName), image: \(image)", category: .ui)
         
+        // Prepare environment variables for the container
+        var envVars: [String: String] = [:]
+        
+        // Add Anthropic API key if available
+        if !settings.claudeAPIKey.isEmpty {
+            envVars["ANTHROPIC_API_KEY"] = settings.claudeAPIKey
+        }
+        
         let config = FlyLaunchConfig(
             appName: appName,
             image: image,
-            region: region
+            region: region,
+            env: envVars
         )
         
         isLoading = true

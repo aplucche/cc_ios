@@ -1,11 +1,14 @@
 # Claude Agent Server
 
-FastAPI server providing PTY-based terminal access via WebSocket.
+FastAPI server providing PTY-based terminal access with Claude Code integration via WebSocket.
 
 ## Features
 
-- **Real PTY Terminal**: Actual bash/zsh shells via Python pty module
-- **WebSocket Streaming**: Bidirectional communication between iOS and shell
+- **Claude Code Integration**: Auto-detects and launches Claude Code CLI v1.0.77 when available
+- **Intelligent Fallback**: Falls back to bash/zsh if Claude Code unavailable or fails
+- **API Key Security**: Receives Anthropic API key from iOS app via environment variables
+- **Real PTY Terminal**: Actual Claude Code or bash/zsh shells via Python pty module
+- **WebSocket Streaming**: Bidirectional communication between iOS and terminal
 - **Terminal Features**: Command history, tab completion, ANSI colors, resize handling
 - **Multi-Client Support**: Multiple iOS devices can connect to same shell session
 - **Agent Management**: HTTP endpoints for lifecycle management
@@ -58,5 +61,14 @@ fly secrets set AUTH_TOKEN=your-secret-token
 
 ### Environment Variables
 - `AUTH_TOKEN` - Bearer token for API authentication (default: "default-token")
+- `ANTHROPIC_API_KEY` - API key for Claude Code authentication (passed from iOS app)
+- `DEBUG_LOGGING` - Enable debug logging (optional)
 - `HOST` - Server host (default: "0.0.0.0") 
 - `PORT` - Server port (default: 8080)
+
+### Claude Code Integration Details
+- **Installation**: Uses native Claude Code installer (`curl -fsSL https://claude.ai/install.sh | bash`)
+- **Detection**: Server checks for `claude-code --version` availability at startup
+- **Launch Command**: `claude-code --interactive` when available, falls back to shell
+- **API Key**: Automatically configured via `ANTHROPIC_API_KEY` environment variable
+- **Fallback**: Graceful degradation to bash/zsh if Claude Code fails
