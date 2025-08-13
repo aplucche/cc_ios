@@ -18,6 +18,10 @@ WORKDIR /app
 
 # Copy source
 COPY serve_agent.py /app/
+COPY startup.sh /app/
+
+# Make startup script executable
+RUN chmod +x /app/startup.sh
 
 # Environment defaults (can be overridden by Fly API)
 ENV HOST=0.0.0.0 PORT=8080 PYTHONUNBUFFERED=1
@@ -25,5 +29,5 @@ ENV HOST=0.0.0.0 PORT=8080 PYTHONUNBUFFERED=1
 # Expose internal port
 EXPOSE 8080
 
-# Start agent server
-CMD ["uvicorn", "serve_agent:app", "--host", "0.0.0.0", "--port", "8080"]
+# Start with our custom startup script
+CMD ["/app/startup.sh"]
