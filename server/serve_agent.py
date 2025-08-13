@@ -31,74 +31,63 @@ AUTH_TOKEN = os.getenv("AUTH_TOKEN", "default-token")
 class AgentProcess:
     def __init__(self, agent_id: str):
         self.agent_id = agent_id
-        self.process_pid: Optional[int] = None
-        self.pty_fd: Optional[int] = None
+        self.tmux_session: Optional[str] = None
         self.output_queue = asyncio.Queue()
-        self.input_queue = asyncio.Queue()
         self.websockets: set[WebSocket] = set()
         self.created_at = datetime.now(UTC)
         self.is_running = False
         self.terminal_size = (24, 80)  # rows, cols
+        self.last_output_size = 0
 
     async def start_process(self):
-        """Start a real shell using PTY"""
+        """Start Claude Code or shell in tmux session"""
         try:
-            # Check if claude-code is available and properly configured
+            # Check if claude is available and properly configured
             claude_available = await self._check_claude_availability()
             
             if claude_available and await self._setup_claude_config():
                 # Use claude in interactive mode after proper setup
-                command = ["claude"]
+                command = "claude"
             else:
                 # Use bash or fallback to sh
                 shell = os.getenv("SHELL", "/bin/bash")
                 if not os.path.exists(shell):
                     shell = "/bin/sh"
-                command = [shell, "-i"]  # Interactive shell
+                command = f"{shell} -i"  # Interactive shell
             
-            debug_log(f"Starting shell: {' '.join(command)}")
+            debug_log(f"Starting tmux session with: {command}")
             
-            # Create PTY and fork process
-            self.pty_fd, child_fd = pty.openpty()
-            self.process_pid = os.fork()
+            # Create unique tmux session name
+            self.tmux_session = f"claude-{self.agent_id}"
             
-            if self.process_pid == 0:
-                # Child process - become shell
-                os.close(self.pty_fd)
-                os.setsid()
-                os.dup2(child_fd, 0)  # stdin
-                os.dup2(child_fd, 1)  # stdout  
-                os.dup2(child_fd, 2)  # stderr
-                os.close(child_fd)
+            # Set up environment for Claude Code
+            env = os.environ.copy()
+            env.update({
+                'TERM': 'xterm-256color',
+                'FORCE_COLOR': '1',
+                'CLICOLOR': '1'
+            })
+            
+            # Pass through Anthropic API key and configure Claude Code
+            if 'ANTHROPIC_API_KEY' in os.environ:
+                env['ANTHROPIC_API_KEY'] = os.environ['ANTHROPIC_API_KEY']
+                # Disable non-essential Claude Code traffic for container
+                env['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'] = 'true'
+            
+            # Start tmux session with command
+            result = subprocess.run([
+                "tmux", "new-session", "-d", "-s", self.tmux_session, command
+            ], env=env, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                raise Exception(f"Failed to start tmux session: {result.stderr}")
                 
-                # Set terminal size
-                self._set_terminal_size()
-                
-                # Set environment for better shell experience
-                env = os.environ.copy()
-                env.update({
-                    'TERM': 'xterm-256color',
-                    'PS1': '\\[\\033[01;32m\\]\\u@claude-agent\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$ ',
-                    'FORCE_COLOR': '1',
-                    'CLICOLOR': '1'
-                })
-                
-                # Pass through Anthropic API key and configure Claude Code
-                if 'ANTHROPIC_API_KEY' in os.environ:
-                    env['ANTHROPIC_API_KEY'] = os.environ['ANTHROPIC_API_KEY']
-                    # Disable non-essential Claude Code traffic for container
-                    env['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'] = 'true'
-                
-                os.execvpe(command[0], command, env)
-            else:
-                # Parent process
-                os.close(child_fd)
-                self.is_running = True
-                
-                # Start background task to read PTY output
-                asyncio.create_task(self._read_pty_output())
-                
-                debug_log(f"Started shell process PID: {self.process_pid}")
+            self.is_running = True
+            
+            # Start background task to read tmux output
+            asyncio.create_task(self._read_tmux_output())
+            
+            debug_log(f"Started tmux session: {self.tmux_session}")
                 
         except Exception as e:
             debug_log(f"Agent start error: {type(e).__name__}: {str(e)}")
@@ -170,105 +159,89 @@ class AgentProcess:
             return False
 
     def _set_terminal_size(self, rows=None, cols=None):
-        """Set the terminal size using termios"""
+        """Set the terminal size for tmux session"""
         if rows and cols:
             self.terminal_size = (rows, cols)
         
-        try:
-            import termios
-            import struct
-            import fcntl
-            rows, cols = self.terminal_size
+        if not self.tmux_session:
+            return
             
-            # Set terminal size on PTY
-            if self.pty_fd:
-                size = struct.pack("HHHH", rows, cols, 0, 0)
-                fcntl.ioctl(self.pty_fd, termios.TIOCSWINSZ, size)
-                
-                # Send SIGWINCH to notify shell of size change
-                if self.process_pid:
-                    os.kill(self.process_pid, signal.SIGWINCH)
-                    
+        try:
+            rows, cols = self.terminal_size
+            # Resize tmux session
+            subprocess.run([
+                "tmux", "resize-window", "-t", self.tmux_session, "-x", str(cols), "-y", str(rows)
+            ], capture_output=True)
             debug_log(f"Terminal size set to: {cols}x{rows}")
         except Exception as e:
             debug_log(f"Could not set terminal size: {e}")
 
-    async def _read_pty_output(self):
-        """Read output from the PTY and queue it for WebSocket"""
-        if not self.pty_fd:
+    async def _read_tmux_output(self):
+        """Read output from tmux session and queue it for WebSocket"""
+        if not self.tmux_session:
             return
             
         try:
-            # Make PTY non-blocking
-            import fcntl
-            flags = fcntl.fcntl(self.pty_fd, fcntl.F_GETFL)
-            fcntl.fcntl(self.pty_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
-            
             while self.is_running:
                 try:
-                    # Use asyncio to read from PTY without blocking
-                    data = await asyncio.get_event_loop().run_in_executor(
-                        None, self._read_pty_data
-                    )
-                    if data:
-                        await self.output_queue.put(data)
-                    else:
-                        # Small delay to prevent busy loop
-                        await asyncio.sleep(0.01)
+                    # Capture current tmux pane content
+                    result = subprocess.run([
+                        "tmux", "capture-pane", "-t", self.tmux_session, "-p"
+                    ], capture_output=True, text=True, timeout=1)
+                    
+                    if result.returncode == 0:
+                        current_output = result.stdout
+                        # Send the entire output each time (tmux capture-pane gives full screen)
+                        if current_output and current_output != getattr(self, '_last_full_output', ''):
+                            await self.output_queue.put(current_output)
+                            self._last_full_output = current_output
+                    
+                    # Small delay to prevent busy loop
+                    await asyncio.sleep(0.1)
+                    
+                except subprocess.TimeoutExpired:
+                    continue
                 except Exception as e:
-                    debug_log(f"PTY read error: {e}")
+                    debug_log(f"Tmux read error: {e}")
                     break
                     
         except Exception as e:
-            await self.output_queue.put(f"Error reading PTY output: {str(e)}\n")
+            await self.output_queue.put(f"Error reading tmux output: {str(e)}\n")
         finally:
             self.is_running = False
-            debug_log(f"PTY output reader stopped for agent {self.agent_id}")
-
-    def _read_pty_data(self):
-        """Read data from PTY (blocking call - run in executor)"""
-        try:
-            return os.read(self.pty_fd, 1024).decode('utf-8', errors='ignore')
-        except (OSError, BlockingIOError):
-            return None
+            debug_log(f"Tmux output reader stopped for agent {self.agent_id}")
 
     async def send_input(self, data: str):
-        """Send input to the PTY"""
-        if self.pty_fd:
-            try:
-                debug_log(f"Sending to PTY: {repr(data)}")
-                os.write(self.pty_fd, data.encode('utf-8'))
-                debug_log(f"Sent to PTY successfully")
-            except Exception as e:
-                debug_log(f"Error sending input to PTY: {e}")
-                await self.output_queue.put(f"Error sending input: {str(e)}\n")
+        """Send input to the tmux session"""
+        if not self.tmux_session:
+            return
+            
+        try:
+            debug_log(f"Sending to tmux: {repr(data)}")
+            # Send keys to tmux session
+            subprocess.run([
+                "tmux", "send-keys", "-t", self.tmux_session, data
+            ], capture_output=True)
+            debug_log(f"Sent to tmux successfully")
+        except Exception as e:
+            debug_log(f"Error sending input to tmux: {e}")
+            await self.output_queue.put(f"Error sending input: {str(e)}\n")
 
     async def stop(self):
         """Stop the agent process"""
         self.is_running = False
         
-        # Close PTY
-        if self.pty_fd:
+        # Kill tmux session
+        if self.tmux_session:
             try:
-                os.close(self.pty_fd)
-                self.pty_fd = None
+                subprocess.run([
+                    "tmux", "kill-session", "-t", self.tmux_session
+                ], capture_output=True)
+                debug_log(f"Killed tmux session: {self.tmux_session}")
             except Exception as e:
-                debug_log(f"Error closing PTY: {e}")
-        
-        # Kill process
-        if self.process_pid:
-            try:
-                os.kill(self.process_pid, signal.SIGTERM)
-                await asyncio.sleep(1.0)
-                try:
-                    os.kill(self.process_pid, 0)
-                    os.kill(self.process_pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-            except Exception as e:
-                debug_log(f"Error stopping process: {e}")
+                debug_log(f"Error killing tmux session: {e}")
             finally:
-                self.process_pid = None
+                self.tmux_session = None
 
     def get_status(self):
         """Get agent status"""
@@ -276,7 +249,7 @@ class AgentProcess:
             "agent_id": self.agent_id,
             "is_running": self.is_running,
             "created_at": self.created_at.isoformat(),
-            "process_pid": self.process_pid,
+            "tmux_session": self.tmux_session,
             "output_queue_size": self.output_queue.qsize(),
             "terminal_size": self.terminal_size,
             "connected_clients": len(self.websockets),

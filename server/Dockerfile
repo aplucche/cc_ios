@@ -1,8 +1,9 @@
 FROM python:3.11-slim
 
-# Install dependencies including curl for Claude Code installation
+# Install dependencies including curl for Claude Code installation and tmux for session management
 RUN apt-get update && apt-get install -y \
     curl \
+    tmux \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies

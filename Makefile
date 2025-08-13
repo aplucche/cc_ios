@@ -46,6 +46,8 @@ docker-test: docker-build
 	@curl -f http://localhost:8080/ && echo " ✅ Health check passed"
 	@curl -f -H "Authorization: Bearer $(TEST_TOKEN)" http://localhost:8080/agents && echo " ✅ Auth endpoint passed"
 	@docker exec test-claude-agent claude --version | grep -q "Claude Code" && echo " ✅ Claude Code detection passed" || echo " ❌ Claude Code detection failed"
+	@docker exec test-claude-agent tmux -V | grep -q "tmux" && echo " ✅ tmux installation passed" || echo " ❌ tmux installation failed"
+	@python test_tmux.py && echo " ✅ tmux integration passed" || echo " ❌ tmux integration failed"
 	@docker stop test-claude-agent && docker rm test-claude-agent
 	@echo "✅ Container tests complete!"
 
@@ -63,6 +65,3 @@ container-publish:
 # Integration Testing
 test-integration:
 	./test-integration.sh
-
-test-claude:
-	python test_claude_detection.py
