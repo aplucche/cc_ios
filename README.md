@@ -48,36 +48,5 @@ make docker-test            # Build and test container
 make test-integration       # Full integration tests
 
 # Debug logging (optional)
-export DEBUG_LOGGING=1      # Enable server debug logs
+export DEBUG_LOGGING=1      # Enable detailed logs
 ```
-
-## Debug Logging
-
-Enable detailed logging for troubleshooting WebSocket connections, terminal I/O, and container behavior.
-
-### Server Debug Logging
-```bash
-# Enable server debug logs (container/Python server)
-export DEBUG_LOGGING=1
-make docker-test
-```
-
-### iOS Debug Logging
-
-**Option 1: Xcode Environment Variables**
-1. Product → Scheme → Edit Scheme
-2. Run → Arguments → Environment Variables
-3. Add: `DEBUG_LOGGING` = `1`
-
-**Option 2: Temporary Code Addition**
-```swift
-// Add to App.swift or similar for testing
-ProcessInfo.processInfo.setValue("1", forKey: "DEBUG_LOGGING")
-```
-
-**What Gets Logged:**
-- WebSocket connection/disconnection events
-- Terminal input/output flow  
-- Session management and switching
-- API calls to Fly.io
-- Container startup and tmux session creation
