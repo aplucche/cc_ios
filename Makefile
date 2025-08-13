@@ -1,5 +1,5 @@
 # Claude Machine Launcher - Development Commands
-.PHONY: help ios-generate ios-build ios-test server-dev docker-build docker-test container-publish test-integration
+.PHONY: help ios-generate ios-build ios-test server-dev docker-build docker-test test-claude container-publish test-integration
 
 # Default target
 help:
@@ -10,6 +10,7 @@ help:
 	@echo "  server-dev        Run FastAPI server locally"
 	@echo "  docker-build      Build Docker container"
 	@echo "  docker-test       Test Docker container locally"
+	@echo "  test-claude       Test Claude Code detection in container"
 	@echo "  container-publish Push to main branch to trigger GHCR publish"
 	@echo "  test-integration  Run full integration test suite"
 
@@ -44,8 +45,13 @@ docker-test: docker-build
 	@sleep 3
 	@curl -f http://localhost:8080/ && echo " ✅ Health check passed"
 	@curl -f -H "Authorization: Bearer $(TEST_TOKEN)" http://localhost:8080/agents && echo " ✅ Auth endpoint passed"
+	@docker exec test-claude-agent claude --version | grep -q "Claude Code" && echo " ✅ Claude Code detection passed" || echo " ❌ Claude Code detection failed"
 	@docker stop test-claude-agent && docker rm test-claude-agent
 	@echo "✅ Container tests complete!"
+
+test-claude: docker-build
+	@echo "🧪 Testing Claude Code integration..."
+	@docker run --rm $(CONTAINER_NAME) claude --version | grep -q "Claude Code" && echo "✅ Claude Code working" || echo "❌ Claude Code failed"
 
 container-publish:
 	@echo "📦 To publish container to GHCR:"
@@ -57,3 +63,6 @@ container-publish:
 # Integration Testing
 test-integration:
 	./test-integration.sh
+
+test-claude:
+	python test_claude_detection.py

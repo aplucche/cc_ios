@@ -47,8 +47,8 @@ class AgentProcess:
             claude_available = await self._check_claude_availability()
             
             if claude_available and await self._setup_claude_config():
-                # Use claude-code in interactive mode after proper setup
-                command = ["claude-code"]
+                # Use claude in interactive mode after proper setup
+                command = ["claude"]
             else:
                 # Use bash or fallback to sh
                 shell = os.getenv("SHELL", "/bin/bash")
@@ -108,10 +108,10 @@ class AgentProcess:
             raise HTTPException(status_code=500, detail=f"Failed to start agent: {type(e).__name__}: {str(e)}")
 
     async def _check_claude_availability(self) -> bool:
-        """Check if claude-code CLI is available"""
+        """Check if claude CLI is available"""
         try:
             result = subprocess.run(
-                ["claude-code", "--version"], 
+                ["claude", "--version"], 
                 capture_output=True, 
                 text=True, 
                 timeout=5
@@ -149,9 +149,9 @@ class AgentProcess:
             
             debug_log(f"Claude Code configuration created at {config_file}")
             
-            # Test if claude-code works with our setup
+            # Test if claude works with our setup
             test_result = subprocess.run(
-                ["claude-code", "--version"],
+                ["claude", "--version"],
                 capture_output=True,
                 text=True,
                 timeout=5,
