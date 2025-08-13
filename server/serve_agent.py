@@ -31,7 +31,7 @@ AUTH_TOKEN = os.getenv("AUTH_TOKEN", "default-token")
 class AgentProcess:
     def __init__(self, agent_id: str):
         self.agent_id = agent_id
-        self.tmux_session: str = "main"  # Always use the main session
+        self.tmux_session: Optional[str] = None
         self.output_queue = asyncio.Queue()
         self.websockets: set[WebSocket] = set()
         self.created_at = datetime.now(UTC)
@@ -40,35 +40,123 @@ class AgentProcess:
         self.last_output_size = 0
 
     async def start_process(self):
-        """Attach to existing main tmux session (Claude already running)"""
+        """Start Claude Code or shell in tmux session"""
         try:
-            debug_log(f"Attaching to main tmux session for agent {self.agent_id}")
+            # Check if claude is available and properly configured
+            claude_available = await self._check_claude_availability()
             
-            # Verify the main tmux session exists
+            if claude_available and await self._setup_claude_config():
+                # Use claude in interactive mode after proper setup
+                command = "claude"
+            else:
+                # Use bash or fallback to sh
+                shell = os.getenv("SHELL", "/bin/bash")
+                if not os.path.exists(shell):
+                    shell = "/bin/sh"
+                command = f"{shell} -i"  # Interactive shell
+            
+            debug_log(f"Starting tmux session with: {command}")
+            
+            # Create unique tmux session name
+            self.tmux_session = f"claude-{self.agent_id}"
+            
+            # Set up environment for Claude Code
+            env = os.environ.copy()
+            env.update({
+                'TERM': 'xterm-256color',
+                'FORCE_COLOR': '1',
+                'CLICOLOR': '1'
+            })
+            
+            # Pass through Anthropic API key and configure Claude Code
+            if 'ANTHROPIC_API_KEY' in os.environ:
+                env['ANTHROPIC_API_KEY'] = os.environ['ANTHROPIC_API_KEY']
+                # Disable non-essential Claude Code traffic for container
+                env['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'] = 'true'
+            
+            # Start tmux session with command
             result = subprocess.run([
-                "tmux", "list-sessions"
-            ], capture_output=True, text=True)
+                "tmux", "new-session", "-d", "-s", self.tmux_session, command
+            ], env=env, capture_output=True, text=True)
             
-            if result.returncode != 0 or "main" not in result.stdout:
-                raise Exception("Main tmux session not found - container startup may have failed")
-            
-            debug_log("Main tmux session found - attaching to existing Claude session")
-            
-            # Set running state and start reading output
+            if result.returncode != 0:
+                raise Exception(f"Failed to start tmux session: {result.stderr}")
+                
             self.is_running = True
             
             # Start background task to read tmux output
             asyncio.create_task(self._read_tmux_output())
             
-            debug_log(f"Successfully attached to main session for agent {self.agent_id}")
+            debug_log(f"Started tmux session: {self.tmux_session}")
                 
         except Exception as e:
-            debug_log(f"Agent attach error: {type(e).__name__}: {str(e)}")
+            debug_log(f"Agent start error: {type(e).__name__}: {str(e)}")
             if DEBUG:
                 import traceback
                 traceback.print_exc()
-            raise HTTPException(status_code=500, detail=f"Failed to attach to main session: {type(e).__name__}: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to start agent: {type(e).__name__}: {str(e)}")
 
+    async def _check_claude_availability(self) -> bool:
+        """Check if claude CLI is available"""
+        try:
+            result = subprocess.run(
+                ["claude", "--version"], 
+                capture_output=True, 
+                text=True, 
+                timeout=5
+            )
+            return result.returncode == 0
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return False
+
+    async def _setup_claude_config(self) -> bool:
+        """Set up Claude Code configuration for API key authentication"""
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            debug_log("No ANTHROPIC_API_KEY provided, falling back to shell")
+            return False
+        
+        try:
+            # Create .claude directory if it doesn't exist
+            import pathlib
+            claude_dir = pathlib.Path.home() / ".claude"
+            claude_dir.mkdir(exist_ok=True)
+            
+            # Create configuration file for headless operation
+            config_file = claude_dir / "config.json"
+            config_data = {
+                "customApiKeyResponses": {
+                    "approved": [api_key[-20:]],  # Last 20 chars for approval
+                    "rejected": []
+                },
+                "hasCompletedOnboarding": True
+            }
+            
+            import json
+            with open(config_file, 'w') as f:
+                json.dump(config_data, f, indent=2)
+            
+            debug_log(f"Claude Code configuration created at {config_file}")
+            
+            # Test if claude works with our setup
+            test_result = subprocess.run(
+                ["claude", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                env={**os.environ, "ANTHROPIC_API_KEY": api_key}
+            )
+            
+            if test_result.returncode == 0:
+                debug_log(f"Claude Code API key authentication ready")
+                return True
+            else:
+                debug_log(f"Claude Code test failed: {test_result.stderr}")
+                return False
+                
+        except Exception as e:
+            debug_log(f"Claude Code setup error: {e}")
+            return False
 
     def _set_terminal_size(self, rows=None, cols=None):
         """Set the terminal size for tmux session"""
@@ -140,10 +228,20 @@ class AgentProcess:
             await self.output_queue.put(f"Error sending input: {str(e)}\n")
 
     async def stop(self):
-        """Stop the agent process (detach from main session)"""
+        """Stop the agent process"""
         self.is_running = False
-        debug_log(f"Agent {self.agent_id} detached from main session")
-        # Note: We don't kill the main tmux session as it's shared and contains Claude
+        
+        # Kill tmux session
+        if self.tmux_session:
+            try:
+                subprocess.run([
+                    "tmux", "kill-session", "-t", self.tmux_session
+                ], capture_output=True)
+                debug_log(f"Killed tmux session: {self.tmux_session}")
+            except Exception as e:
+                debug_log(f"Error killing tmux session: {e}")
+            finally:
+                self.tmux_session = None
 
     def get_status(self):
         """Get agent status"""
@@ -155,7 +253,6 @@ class AgentProcess:
             "output_queue_size": self.output_queue.qsize(),
             "terminal_size": self.terminal_size,
             "connected_clients": len(self.websockets),
-            "architecture": "direct_tmux_attach"
         }
 
 
