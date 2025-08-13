@@ -92,27 +92,47 @@ class AgentProcess:
         """Read output from tmux session and queue it for WebSocket"""
         if not self.tmux_session:
             return
-            
+        
+        # Send initial screen content
         try:
+            result = subprocess.run([
+                "tmux", "capture-pane", "-t", self.tmux_session, "-p"
+            ], capture_output=True, text=True, timeout=1)
+            
+            if result.returncode == 0:
+                initial_output = result.stdout
+                if initial_output:
+                    # Clear screen and send initial content
+                    await self.output_queue.put("\033[2J\033[H" + initial_output)
+                    debug_log(f"Sent initial screen content ({len(initial_output)} chars)")
+        except Exception as e:
+            debug_log(f"Error sending initial screen: {e}")
+            
+        # Use pipe-pane for incremental output
+        try:
+            # Start pipe-pane to capture new output only
+            subprocess.run([
+                "tmux", "pipe-pane", "-t", self.tmux_session, "-o", f"cat >> /tmp/tmux-output-{self.agent_id}"
+            ], capture_output=True)
+            
+            output_file = f"/tmp/tmux-output-{self.agent_id}"
+            last_position = 0
+            
             while self.is_running:
                 try:
-                    # Capture current tmux pane content
-                    result = subprocess.run([
-                        "tmux", "capture-pane", "-t", self.tmux_session, "-p"
-                    ], capture_output=True, text=True, timeout=1)
-                    
-                    if result.returncode == 0:
-                        current_output = result.stdout
-                        # Send the entire output each time (tmux capture-pane gives full screen)
-                        if current_output and current_output != getattr(self, '_last_full_output', ''):
-                            await self.output_queue.put(current_output)
-                            self._last_full_output = current_output
+                    # Read new content from the pipe output file
+                    if os.path.exists(output_file):
+                        with open(output_file, 'r') as f:
+                            f.seek(last_position)
+                            new_content = f.read()
+                            if new_content:
+                                await self.output_queue.put(new_content)
+                                last_position = f.tell()
+                                debug_log(f"Sent incremental output ({len(new_content)} chars)")
                     
                     # Small delay to prevent busy loop
                     await asyncio.sleep(0.1)
                     
-                except subprocess.TimeoutExpired:
-                    continue
                 except Exception as e:
                     debug_log(f"Tmux read error: {e}")
                     break
@@ -120,6 +140,17 @@ class AgentProcess:
         except Exception as e:
             await self.output_queue.put(f"Error reading tmux output: {str(e)}\n")
         finally:
+            # Clean up pipe-pane
+            try:
+                subprocess.run([
+                    "tmux", "pipe-pane", "-t", self.tmux_session
+                ], capture_output=True)
+                output_file = f"/tmp/tmux-output-{self.agent_id}"
+                if os.path.exists(output_file):
+                    os.remove(output_file)
+            except:
+                pass
+                
             self.is_running = False
             debug_log(f"Tmux output reader stopped for agent {self.agent_id}")
 
