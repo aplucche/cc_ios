@@ -133,12 +133,12 @@ class AgentProcess:
             claude_dir = pathlib.Path.home() / ".claude"
             claude_dir.mkdir(exist_ok=True)
             
-            # Create API key helper script
-            helper_script = pathlib.Path("/usr/local/bin/anthropic_key_helper.sh")
-            helper_script.parent.mkdir(parents=True, exist_ok=True)
+            # Create API key helper script (use /tmp for write permissions)
+            helper_script = pathlib.Path("/tmp/anthropic_key_helper.sh")
             with open(helper_script, 'w') as f:
-                f.write('#!/bin/bash\necho "$ANTHROPIC_API_KEY"\n')
+                f.write('#!/bin/sh\necho "$ANTHROPIC_API_KEY"\n')  # Use sh instead of bash
             helper_script.chmod(0o755)
+            debug_log(f"Created API key helper at {helper_script}")
             
             # Approach 1: Create complete configuration file to bypass onboarding
             claude_config = claude_dir / "claude.json"
@@ -146,7 +146,9 @@ class AgentProcess:
                 "hasCompletedOnboarding": True,
                 "theme": "dark",
                 "apiKeyHelper": str(helper_script),
-                "defaultMode": "acceptEdits"
+                "defaultMode": "acceptEdits",
+                # Also try direct API key approach as fallback
+                "apiKey": api_key
             }
             
             import json
@@ -167,6 +169,11 @@ class AgentProcess:
                 json.dump(settings_data, f, indent=2)
             
             debug_log(f"Claude Code settings created at {settings_file}")
+            
+            # Verify files were created properly
+            debug_log(f"Config file exists: {claude_config.exists()}")
+            debug_log(f"Settings file exists: {settings_file.exists()}")
+            debug_log(f"Helper script exists: {helper_script.exists()}")
             
             # Approach 3: Try config commands as backup
             try:
@@ -196,7 +203,10 @@ class AgentProcess:
                 return False
                 
         except Exception as e:
-            debug_log(f"Claude Code setup error: {e}")
+            debug_log(f"Claude Code setup error: {type(e).__name__}: {e}")
+            if DEBUG:
+                import traceback
+                debug_log(f"Claude Code setup traceback: {traceback.format_exc()}")
             return False
 
     def _set_terminal_size(self, rows=None, cols=None):
