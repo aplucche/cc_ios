@@ -74,7 +74,7 @@ Reference the GHCR image in your iOS app's Fly machine creation API calls.
 curl -X POST "https://api.machines.dev/v1/apps/{your-fly-org}/machines" \
   -H "Authorization: Bearer $FLY_API_TOKEN" \
   -H "Content-Type: application/json" \
-  -d @machine-config.json
+  -d '{"config": {"image": "ghcr.io/aplucche/cc_ios-claude-agent:latest", "guest": {"memory_mb": 512, "cpus": 1, "cpu_kind": "shared"}}}'
 ```
 
 ### iOS App Integration

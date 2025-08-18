@@ -166,7 +166,6 @@
 - Configuration creation: Multiple config files and helper scripts for Claude CLI
 
 ### **Configuration**
-- `machine-config.json`: Fly.io machine configuration with TLS settings
 - `CLAUDE.md`: Project documentation and development guidelines
 - `README.md`: Updated with comprehensive logging instructions
 

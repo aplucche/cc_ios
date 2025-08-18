@@ -28,7 +28,8 @@ struct FlyLaunchConfig {
         return MachineConfig(
             image: image,
             env: env.isEmpty ? nil : env,
-            services: [service]
+            services: [service],
+            guest: GuestConfig(memoryMb: 512)
         )
     }
 }

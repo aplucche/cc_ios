@@ -15,7 +15,6 @@ Copy these files to `git@github.com:aplucche/cc_ios.git`:
 ├── server/
 │   ├── Dockerfile                   # Container definition
 │   ├── serve_agent.py              # FastAPI WebSocket server
-│   ├── machine-config.json         # Example Fly machine config
 │   ├── pyproject.toml              # Python dependencies
 │   └── README.md                   # Server documentation
 ```
