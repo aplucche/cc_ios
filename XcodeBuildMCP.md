@@ -110,10 +110,50 @@ screenshot({ simulatorUuid: "74919D9C-F842-4A8F-B625-812FB206E9B6" })
 - **Multiple simulator support** - Can run different devices simultaneously for testing
 - **Complete build cycle** - From code change to deployed container to live testing in <5 minutes
 
+## Container Testing Results
+
+### ✅ Environment Variable Fix Success
+**Fixed `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` hanging issue by using individual variables:**
+```bash
+# New working environment variables in container:
+DISABLE_ERROR_REPORTING=1
+DISABLE_TELEMETRY=1  
+DISABLE_BUG_COMMAND=1
+DISABLE_AUTOUPDATER=1
+ANTHROPIC_API_KEY=sk-ant-api03-...
+
+# No longer using problematic:
+# CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=true
+```
+
+### ✅ Container Deployment Workflow
+1. **Code Fix**: Modified `serve_agent.py` environment variables
+2. **Local Testing**: `make docker-test` - "✅ Claude Code detection passed"
+3. **Deploy**: Git commit/push triggers GHCR container build
+4. **Live Testing**: Launch new machine "empty-night-1512" with updated container
+5. **Verification**: Terminal testing confirms fixes applied
+
+### ✅ Claude Code Status
+- **Installation**: ✅ `/usr/local/bin/claude` present
+- **Configuration**: ✅ `~/.claude/claude.json` and `settings.json` created  
+- **API Key**: ✅ Properly passed from iOS app to container
+- **Basic Commands**: ✅ `which claude`, environment checks work
+- **Help Command**: ✅ `timeout 5 claude --help` completes (vs infinite hang)
+- **Version Command**: ❌ Still hangs, but manageable with timeouts
+
+### 🔧 Button Interaction Challenge
+**"Launch New Agent" button difficult to trigger via automation:**
+- Multiple tap approaches tried (single, double, long press, touch events)
+- Coordinates verified with `describe_ui` - button frame correct
+- Occasional success (saw "No Replacements Found" briefly)
+- **Workaround**: Manual button press by user, then continue automated testing
+
 ## Best Practices
 
 1. **Always use `describe_ui`** before UI interactions - coordinates are pixel-perfect
 2. **Take screenshots frequently** - Visual verification catches issues early  
 3. **Test with fresh simulators** - Avoids cached state from previous tests
 4. **Wait for deployments** - Give containers 30+ seconds to start after launching
-5. **Screenshot before/after** - Documents exact app behavior for debugging
+5. **Use timeouts for Claude commands** - `timeout 5 claude --help` vs hanging indefinitely
+6. **Manual fallback for difficult buttons** - Some UI elements may need manual interaction
+7. **Verify environment variables** - `env | grep -E "(DISABLE|ANTHROPIC)"` confirms fixes applied
