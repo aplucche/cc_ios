@@ -100,13 +100,13 @@ ClaudeMachineLauncher/
 
 ### Complete Integration Flow
 1. **Agents Tab**: Launch Fly.io machine using Fly.io REST API with our custom claude-agent container
-2. **Claude Code Integration**: Container automatically detects and launches Claude Code CLI with API key
+2. **Claude Code Integration**: Container automatically configures and launches Claude Code CLI with onboarding bypass
 3. **Get Machine URL**: Launched machine endpoint is `{machine-id}.{app-name}.fly.dev`
 4. **Terminal Tab**: Auto-populated with machine URL, connect via WebSocket to PTY-based Claude Code or shell
-5. **Real Terminal**: Direct bidirectional communication with Claude Code CLI or bash/zsh fallback
+5. **Real Terminal**: Direct bidirectional communication with Claude Code CLI (no onboarding prompts) or bash/zsh fallback
 
 ### PTY-Based Terminal Architecture
-- **Claude Code Integration**: Container auto-detects and launches `claude-code --interactive` when available
+- **Claude Code Integration**: Container configures and launches `claude-code --interactive` with automatic onboarding bypass
 - **Intelligent Fallback**: Falls back to bash/zsh if Claude Code unavailable or fails
 - **API Key Security**: Anthropic API key passed securely via environment variables from iOS Keychain
 - **Full Terminal Features**: Command history, tab completion, ANSI colors, line editing
@@ -122,6 +122,13 @@ ClaudeMachineLauncher/
 - **Multi-Session Architecture**: SessionManager handles multiple persistent WebSocket connections
 - **Background Persistence**: Terminal sessions continue running when switching between agents
 - **Smart Terminal**: Claude Code when available, shell fallback for reliability
+
+### Claude Code Onboarding Bypass
+- **Configuration Files**: Pre-created `~/.claude/claude.json` and `~/.claude/settings.json` with `hasCompletedOnboarding: true`
+- **API Key Helper**: Custom script at `/usr/local/bin/anthropic_key_helper.sh` returns environment variable
+- **Triple Redundancy**: File config + settings config + command config for maximum reliability
+- **Zero Prompts**: Complete elimination of theme selection and API key approval prompts
+- **Instant Launch**: Claude Code starts directly in interactive mode ready for user input
 
 ---
 

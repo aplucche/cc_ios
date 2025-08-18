@@ -121,7 +121,7 @@ class AgentProcess:
             return False
 
     async def _setup_claude_config(self) -> bool:
-        """Set up Claude Code configuration for API key authentication"""
+        """Set up Claude Code configuration to bypass onboarding"""
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
             debug_log("No ANTHROPIC_API_KEY provided, falling back to shell")
@@ -133,33 +133,63 @@ class AgentProcess:
             claude_dir = pathlib.Path.home() / ".claude"
             claude_dir.mkdir(exist_ok=True)
             
-            # Create configuration file for headless operation
-            config_file = claude_dir / "config.json"
+            # Create API key helper script
+            helper_script = pathlib.Path("/usr/local/bin/anthropic_key_helper.sh")
+            helper_script.parent.mkdir(parents=True, exist_ok=True)
+            with open(helper_script, 'w') as f:
+                f.write('#!/bin/bash\necho "$ANTHROPIC_API_KEY"\n')
+            helper_script.chmod(0o755)
+            
+            # Approach 1: Create complete configuration file to bypass onboarding
+            claude_config = claude_dir / "claude.json"
             config_data = {
-                "customApiKeyResponses": {
-                    "approved": [api_key[-20:]],  # Last 20 chars for approval
-                    "rejected": []
-                },
-                "hasCompletedOnboarding": True
+                "hasCompletedOnboarding": True,
+                "theme": "dark",
+                "apiKeyHelper": str(helper_script),
+                "defaultMode": "acceptEdits"
             }
             
             import json
-            with open(config_file, 'w') as f:
+            with open(claude_config, 'w') as f:
                 json.dump(config_data, f, indent=2)
             
-            debug_log(f"Claude Code configuration created at {config_file}")
+            debug_log(f"Claude Code configuration created at {claude_config}")
+            
+            # Approach 2: Also create settings.json for redundancy
+            settings_file = claude_dir / "settings.json"
+            settings_data = {
+                "hasCompletedOnboarding": True,
+                "theme": "dark",
+                "apiKeyHelper": str(helper_script)
+            }
+            
+            with open(settings_file, 'w') as f:
+                json.dump(settings_data, f, indent=2)
+            
+            debug_log(f"Claude Code settings created at {settings_file}")
+            
+            # Approach 3: Try config commands as backup
+            try:
+                subprocess.run(["claude", "config", "set", "hasCompletedOnboarding", "true"], 
+                              check=True, capture_output=True, timeout=5)
+                subprocess.run(["claude", "config", "set", "theme", "dark"], 
+                              check=True, capture_output=True, timeout=5)
+                debug_log("Claude config commands executed successfully")
+            except subprocess.CalledProcessError as e:
+                debug_log(f"Config commands failed (expected): {e}")
             
             # Test if claude works with our setup
+            test_env = {**os.environ, "ANTHROPIC_API_KEY": api_key}
             test_result = subprocess.run(
                 ["claude", "--version"],
                 capture_output=True,
                 text=True,
                 timeout=5,
-                env={**os.environ, "ANTHROPIC_API_KEY": api_key}
+                env=test_env
             )
             
             if test_result.returncode == 0:
-                debug_log(f"Claude Code API key authentication ready")
+                debug_log(f"Claude Code ready with onboarding bypass: {test_result.stdout.strip()}")
                 return True
             else:
                 debug_log(f"Claude Code test failed: {test_result.stderr}")
