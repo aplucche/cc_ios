@@ -93,8 +93,12 @@ class AgentProcess:
                 # Pass through Anthropic API key and configure Claude Code
                 if 'ANTHROPIC_API_KEY' in os.environ:
                     env['ANTHROPIC_API_KEY'] = os.environ['ANTHROPIC_API_KEY']
-                    # Disable non-essential Claude Code traffic for container
-                    env['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'] = 'true'
+                    # Use individual environment variables instead of CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
+                    # which has known hanging issues in v1.0.45+
+                    env['DISABLE_AUTOUPDATER'] = '1'
+                    env['DISABLE_TELEMETRY'] = '1' 
+                    env['DISABLE_ERROR_REPORTING'] = '1'
+                    env['DISABLE_BUG_COMMAND'] = '1'
                 
                 os.execvpe(command[0], command, env)
             else:
