@@ -43,18 +43,25 @@ class AgentProcess:
     async def start_process(self):
         """Start a real shell using PTY"""
         try:
-            # Check if claude-code is available and properly configured
-            claude_available = await self._check_claude_availability()
+            # First setup Claude configuration (needed before availability check)
+            config_success = await self._setup_claude_config()
             
-            if claude_available and await self._setup_claude_config():
+            # Then check if claude-code is available after configuration
+            claude_available = False
+            if config_success:
+                claude_available = await self._check_claude_availability()
+            
+            if claude_available:
                 # Use claude in interactive mode after proper setup
                 command = ["claude"]
+                debug_log("Using Claude Code CLI")
             else:
                 # Use bash or fallback to sh
                 shell = os.getenv("SHELL", "/bin/bash")
                 if not os.path.exists(shell):
                     shell = "/bin/sh"
                 command = [shell, "-i"]  # Interactive shell
+                debug_log(f"Falling back to shell: {shell}")
             
             debug_log(f"Starting shell: {' '.join(command)}")
             
@@ -110,22 +117,34 @@ class AgentProcess:
     async def _check_claude_availability(self) -> bool:
         """Check if claude CLI is available"""
         try:
+            debug_log("Testing Claude Code availability...")
             result = subprocess.run(
                 ["claude", "--version"], 
                 capture_output=True, 
                 text=True, 
                 timeout=5
             )
-            return result.returncode == 0
-        except (subprocess.TimeoutExpired, FileNotFoundError):
+            if result.returncode == 0:
+                debug_log(f"Claude Code available: {result.stdout.strip()}")
+                return True
+            else:
+                debug_log(f"Claude Code failed: {result.stderr}")
+                return False
+        except subprocess.TimeoutExpired:
+            debug_log("Claude Code timed out (likely onboarding prompt)")
+            return False
+        except FileNotFoundError:
+            debug_log("Claude Code not found in PATH")
             return False
 
     async def _setup_claude_config(self) -> bool:
         """Set up Claude Code configuration to bypass onboarding"""
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
-            debug_log("No ANTHROPIC_API_KEY provided, falling back to shell")
+            debug_log("No ANTHROPIC_API_KEY provided, skipping Claude Code setup")
             return False
+        
+        debug_log("Starting Claude Code configuration setup...")
         
         try:
             # Create .claude directory if it doesn't exist
