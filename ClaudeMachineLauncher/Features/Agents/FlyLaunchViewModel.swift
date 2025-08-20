@@ -2,9 +2,9 @@ import Foundation
 import Combine
 
 class FlyLaunchViewModel: ObservableObject {
-    @Published var appName: String = "claudeagents"
-    @Published var image: String = "ghcr.io/aplucche/cc_ios-claude-agent:latest"
-    @Published var region: String = "ord"
+    @Published var appName: String
+    @Published var image: String
+    @Published var region: String
     
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
@@ -17,6 +17,47 @@ class FlyLaunchViewModel: ObservableObject {
     
     init(service: FlyLaunchServiceProtocol = FlyLaunchService()) {
         self.service = service
+        
+        // Initialize with safe defaults first
+        self.appName = "claudeagents"
+        self.image = "ghcr.io/aplucche/cc_ios-claude-agent:latest"
+        self.region = "ord"
+        
+        // Then update with settings values asynchronously
+        DispatchQueue.main.async { [weak self] in
+            self?.loadSettingsValues()
+            self?.setupSettingsBindings()
+        }
+    }
+    
+    private func loadSettingsValues() {
+        self.appName = settings.defaultAppName
+        self.image = settings.defaultDockerImage
+        self.region = settings.defaultRegion
+    }
+    
+    private func setupSettingsBindings() {
+        // Update fields when settings change
+        settings.$defaultAppName
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newAppName in
+                self?.appName = newAppName
+            }
+            .store(in: &cancellables)
+        
+        settings.$defaultDockerImage
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newImage in
+                self?.image = newImage
+            }
+            .store(in: &cancellables)
+        
+        settings.$defaultRegion
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newRegion in
+                self?.region = newRegion
+            }
+            .store(in: &cancellables)
     }
     
     var canLaunch: Bool {

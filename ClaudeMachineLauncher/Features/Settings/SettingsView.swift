@@ -41,12 +41,23 @@ struct SettingsView: View {
     }
     
     private var flySection: some View {
-        Section("Fly.io Configuration") {
-            TextField("Default App Name", text: $viewModel.defaultAppName)
-                .textInputAutocapitalization(.never)
+        Section(header: Text("Fly.io Configuration"), 
+                footer: Text("App name should match your Fly.io app. Container image should include the Claude Code CLI.")) {
+            VStack(alignment: .leading, spacing: 4) {
+                TextField("App Name", text: $viewModel.defaultAppName)
+                    .textInputAutocapitalization(.never)
+                Text("Used for machine discovery and deployment")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
             
-            TextField("Default Docker Image", text: $viewModel.defaultDockerImage)
-                .textInputAutocapitalization(.never)
+            VStack(alignment: .leading, spacing: 4) {
+                TextField("Container Image", text: $viewModel.defaultDockerImage)
+                    .textInputAutocapitalization(.never)
+                Text("Docker image with Claude Code CLI pre-installed")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
             
             Picker("Default Region", selection: $viewModel.defaultRegion) {
                 Text("Chicago (ord)").tag("ord")

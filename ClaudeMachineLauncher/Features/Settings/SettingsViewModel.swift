@@ -61,8 +61,8 @@ class SettingsViewModel: ObservableObject {
         self.claudeAPIKey = KeychainManager.shared.retrieveKey(forService: KeychainManager.anthropicAPIService) ?? ""
         
         // Load non-sensitive settings from UserDefaults
-        self.defaultAppName = UserDefaults.standard.string(forKey: "defaultAppName") ?? "claude"
-        self.defaultDockerImage = UserDefaults.standard.string(forKey: "defaultDockerImage") ?? "python:3.11-slim"
+        self.defaultAppName = UserDefaults.standard.string(forKey: "defaultAppName") ?? "claudeagents"
+        self.defaultDockerImage = UserDefaults.standard.string(forKey: "defaultDockerImage") ?? "ghcr.io/aplucche/cc_ios-claude-agent:latest"
         self.defaultRegion = UserDefaults.standard.string(forKey: "defaultRegion") ?? "ord"
         self.autoLaunchClaude = UserDefaults.standard.bool(forKey: "autoLaunchClaude")
         
