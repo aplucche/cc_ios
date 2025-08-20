@@ -4,93 +4,78 @@ import Combine
 import UIKit
 
 class TerminalViewModel: ObservableObject {
-    @Published var activeSessionId: String?
-    @Published var activeMachineName: String?
-    @Published var isConnected: Bool = false
-    @Published var isConnecting: Bool = false
     @Published var errorMessage: String?
     
     private var terminalView: SwiftTerm.TerminalView?
     private var cancellables = Set<AnyCancellable>()
-    private var sessionCancellables = Set<AnyCancellable>()
     private var messageBuffer: [String] = []
+    
+    // Direct access to SessionManager state instead of duplicating
+    var activeSessionId: String? { SessionManager.shared.activeSessionId }
+    var activeMachineName: String? { SessionManager.shared.activeSession?.machine.name }
+    var isConnected: Bool { 
+        guard let activeId = activeSessionId else { return false }
+        return SessionManager.shared.connectionStates[activeId] ?? false
+    }
+    var isConnecting: Bool { SessionManager.shared.loadingMachines.contains(activeSessionId ?? "") }
     
     init() {
         setupBindings()
     }
     
     private func setupBindings() {
-        // Monitor SessionManager for active session changes
+        // Monitor session changes to bind messages and trigger UI updates
         SessionManager.shared.$activeSessionId
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] sessionId in
-                self?.activeSessionId = sessionId
-                self?.updateConnectionState()
-            }
-            .store(in: &cancellables)
-        
-        // Monitor AppStateManager for selected machine changes
-        AppStateManager.shared.$selectedMachineId
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] machineId in
-                if let machineId = machineId,
-                   let machine = AppStateManager.shared.selectedMachine {
-                    self?.activeMachineName = machine.name
-                    self?.updateConnectionState()
+            .sink { [weak self] _ in
+                self?.objectWillChange.send() // Trigger UI update for computed properties
+                if let session = SessionManager.shared.activeSession {
+                    self?.bindToSession(session)
                 }
             }
             .store(in: &cancellables)
         
-        // Monitor active session messages and connection state
-        setupActiveSessionBinding()
-    }
-    
-    private func setupActiveSessionBinding() {
-        // This will be called whenever active session changes
-        SessionManager.shared.$activeSessionId
-            .compactMap { (sessionId: String?) -> MachineSession? in
-                guard let sessionId = sessionId else { return nil }
-                return SessionManager.shared.activeSessions[sessionId]
-            }
+        // Monitor connection state changes for UI updates
+        SessionManager.shared.$connectionStates
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] (session: MachineSession) in
-                self?.bindToSession(session)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send() // Trigger UI update
+            }
+            .store(in: &cancellables)
+        
+        // Monitor loading state changes for UI updates
+        SessionManager.shared.$loadingMachines
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send() // Trigger UI update
             }
             .store(in: &cancellables)
     }
+    
+    private var sessionCancellables = Set<AnyCancellable>()
     
     private func bindToSession(_ session: MachineSession) {
+        // Clear previous session bindings to avoid duplicates
         sessionCancellables.removeAll()
         
-        // Bind to session's streaming service
-        session.streamingService.connectionState
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] state in
-                switch state {
-                case .disconnected:
-                    self?.isConnected = false
-                    self?.isConnecting = false
-                    self?.errorMessage = nil
-                case .connecting:
-                    self?.isConnecting = true
-                    self?.errorMessage = nil
-                case .connected:
-                    self?.isConnected = true
-                    self?.isConnecting = false
-                    self?.errorMessage = nil
-                case .failed(let error):
-                    self?.isConnected = false
-                    self?.isConnecting = false
-                    self?.errorMessage = error.localizedDescription
-                }
-            }
-            .store(in: &sessionCancellables)
-        
+        // Only bind to messages - connection state is handled by SessionManager
         session.streamingService.messages
             .receive(on: DispatchQueue.main)
             .sink { [weak self] message in
                 Logger.log("TerminalViewModel received message: '\(message.prefix(100))'", category: .ui)
                 self?.handleIncomingMessage(message)
+            }
+            .store(in: &sessionCancellables)
+        
+        // Handle errors from connection failures
+        session.streamingService.connectionState
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] state in
+                if case .failed(let error) = state {
+                    self?.errorMessage = error.localizedDescription
+                } else {
+                    self?.errorMessage = nil
+                }
             }
             .store(in: &sessionCancellables)
     }
@@ -111,16 +96,6 @@ class TerminalViewModel: ObservableObject {
         messageBuffer.removeAll()
     }
     
-    private func updateConnectionState() {
-        guard let activeId = activeSessionId,
-              let session = SessionManager.shared.activeSessions[activeId] else {
-            isConnected = false
-            isConnecting = false
-            return
-        }
-        
-        isConnected = session.isConnected
-    }
     
     func setTerminalView(_ terminalView: SwiftTerm.TerminalView) {
         self.terminalView = terminalView

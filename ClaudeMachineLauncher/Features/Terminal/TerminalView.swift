@@ -8,9 +8,9 @@ struct TerminalView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Minimal Machine Info
-            if let activeMachine = appState.selectedMachine {
-                minimizedMachineInfo(activeMachine)
+            // Minimal Machine Info - use actual connected machine, not UI selection
+            if let machineName = viewModel.activeMachineName {
+                minimizedMachineInfo(machineName)
             }
             
             if viewModel.isConnected && appState.hasActiveMachine {
@@ -22,13 +22,13 @@ struct TerminalView: View {
         }
     }
     
-    private func minimizedMachineInfo(_ machine: FlyMachine) -> some View {
+    private func minimizedMachineInfo(_ machineName: String) -> some View {
         HStack(spacing: 8) {
             Circle()
                 .fill(viewModel.isConnected ? Color.green : Color.orange)
                 .frame(width: 6, height: 6)
             
-            Text(machine.name)
+            Text(machineName)
                 .font(.caption)
                 .foregroundColor(.secondary)
             
