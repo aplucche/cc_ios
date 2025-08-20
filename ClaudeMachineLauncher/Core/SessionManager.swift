@@ -43,6 +43,7 @@ class SessionManager: ObservableObject {
     
     @Published var activeSessions: [String: MachineSession] = [:] // machineId -> session
     @Published var activeSessionId: String?
+    @Published var loadingMachines: Set<String> = [] // Simple loading state
     
     private var cancellables = Set<AnyCancellable>()
     private let flyService: FlyLaunchServiceProtocol
@@ -326,6 +327,7 @@ class SessionManager: ObservableObject {
             return
         }
         
+        loadingMachines.insert(machineId)
         Logger.log("Starting machine: \(machineId)", category: .network)
         
         Task {
@@ -348,6 +350,10 @@ class SessionManager: ObservableObject {
             } catch {
                 Logger.log("Failed to start machine: \(error.localizedDescription)", category: .network)
             }
+            
+            await MainActor.run {
+                loadingMachines.remove(machineId)
+            }
         }
     }
     
@@ -357,6 +363,7 @@ class SessionManager: ObservableObject {
             return
         }
         
+        loadingMachines.insert(machineId)
         Logger.log("Stopping machine: \(machineId)", category: .network)
         
         Task {
@@ -381,6 +388,10 @@ class SessionManager: ObservableObject {
                 
             } catch {
                 Logger.log("Failed to stop machine: \(error.localizedDescription)", category: .network)
+            }
+            
+            await MainActor.run {
+                loadingMachines.remove(machineId)
             }
         }
     }

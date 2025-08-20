@@ -313,17 +313,35 @@ struct MachineRowView: View {
                         .buttonStyle(.borderless)
                         
                         if machine.state == "stopped" || machine.state == "suspended" {
-                            Button("Start") {
+                            Button {
                                 sessionManager.startMachine(machineId: machine.id)
+                            } label: {
+                                HStack(spacing: 4) {
+                                    if sessionManager.loadingMachines.contains(machine.id) {
+                                        ProgressView()
+                                            .scaleEffect(0.7)
+                                    }
+                                    Text(sessionManager.loadingMachines.contains(machine.id) ? "Starting..." : "Start")
+                                }
                             }
                             .buttonStyle(.borderedProminent)
                             .font(.caption)
+                            .disabled(sessionManager.loadingMachines.contains(machine.id))
                         } else if machine.state == "started" || machine.state == "starting" {
-                            Button("Stop") {
+                            Button {
                                 sessionManager.stopMachine(machineId: machine.id)
+                            } label: {
+                                HStack(spacing: 4) {
+                                    if sessionManager.loadingMachines.contains(machine.id) {
+                                        ProgressView()
+                                            .scaleEffect(0.7)
+                                    }
+                                    Text(sessionManager.loadingMachines.contains(machine.id) ? "Stopping..." : "Stop")
+                                }
                             }
                             .buttonStyle(.bordered)
                             .font(.caption)
+                            .disabled(sessionManager.loadingMachines.contains(machine.id))
                         }
                         
                         if !isSelected && machine.state == "started" {
