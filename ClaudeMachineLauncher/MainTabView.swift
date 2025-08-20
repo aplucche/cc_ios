@@ -2,6 +2,8 @@ import SwiftUI
 
 struct MainTabView: View {
     @State private var selectedTab: Int = 0
+    @StateObject private var appState = AppStateManager.shared
+    @StateObject private var sessionManager = SessionManager.shared
     @StateObject private var settings = SettingsViewModel.shared
     
     var body: some View {
@@ -10,12 +12,19 @@ struct MainTabView: View {
                 // Content area
                 TabView(selection: $selectedTab) {
                     AgentsContentView()
+                        .environmentObject(appState)
+                        .environmentObject(sessionManager)
+                        .environmentObject(settings)
                         .tag(0)
                     
                     TerminalContentView()
+                        .environmentObject(appState)
+                        .environmentObject(sessionManager)
+                        .environmentObject(settings)
                         .tag(1)
                     
                     SettingsContentView()
+                        .environmentObject(settings)
                         .tag(2)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))

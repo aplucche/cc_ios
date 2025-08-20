@@ -2,9 +2,9 @@ import SwiftUI
 
 struct AgentsView: View {
     @StateObject private var viewModel = FlyLaunchViewModel()
-    @StateObject private var appState = AppStateManager.shared
-    @StateObject private var sessionManager = SessionManager.shared
-    @StateObject private var settings = SettingsViewModel.shared
+    @EnvironmentObject private var appState: AppStateManager
+    @EnvironmentObject private var sessionManager: SessionManager
+    @EnvironmentObject private var settings: SettingsViewModel
     
     var body: some View {
         ScrollView {
@@ -139,7 +139,7 @@ struct AgentsView: View {
                     MachineRowView(
                         machine: machine,
                         isSelected: appState.selectedMachineId == machine.id,
-                        isConnected: sessionManager.activeSessions[machine.id]?.isConnected ?? false,
+                        isConnected: sessionManager.connectionStates[machine.id] ?? false,
                         onSelect: {
                             appState.selectMachine(machine.id)
                         },
@@ -259,8 +259,8 @@ struct MachineRowView: View {
     let onSelect: () -> Void
     let onRemove: () -> Void
     
-    @StateObject private var sessionManager = SessionManager.shared
-    @StateObject private var appState = AppStateManager.shared
+    @EnvironmentObject private var sessionManager: SessionManager
+    @EnvironmentObject private var appState: AppStateManager
     
     var body: some View {
         VStack(spacing: 12) {
@@ -377,6 +377,7 @@ struct MachineRowView: View {
                     
                     if machine.state == "started" && !isConnected {
                         Button("Connect") {
+                            appState.selectMachine(machine.id)
                             sessionManager.connectToSession(machineId: machine.id)
                         }
                         .buttonStyle(.borderedProminent)
@@ -393,9 +394,7 @@ struct MachineRowView: View {
         .background(isSelected ? Color.blue.opacity(0.1) : Color.clear)
         .cornerRadius(8)
         .onTapGesture {
-            if machine.state == "started" {
-                onSelect()
-            }
+            onSelect()
         }
     }
     

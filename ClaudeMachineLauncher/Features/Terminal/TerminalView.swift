@@ -3,8 +3,8 @@ import SwiftTerm
 
 struct TerminalView: View {
     @StateObject private var viewModel = TerminalViewModel()
-    @StateObject private var appState = AppStateManager.shared
-    @StateObject private var sessionManager = SessionManager.shared
+    @EnvironmentObject private var appState: AppStateManager
+    @EnvironmentObject private var sessionManager: SessionManager
     
     var body: some View {
         VStack(spacing: 0) {

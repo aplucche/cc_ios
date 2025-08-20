@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @StateObject private var viewModel = SettingsViewModel.shared
+    @EnvironmentObject private var viewModel: SettingsViewModel
     
     var body: some View {
         Form {
