@@ -49,7 +49,7 @@ struct AgentsView: View {
     
     private var configurationSection: some View {
         GroupBox("Configuration") {
-            VStack(spacing: 16) {
+            VStack(spacing: 12) {
                 if !settings.hasRequiredAPIKeys {
                     HStack {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -62,30 +62,42 @@ struct AgentsView: View {
                     HStack {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(.green)
-                        Text("API keys configured")
+                        Text("Ready to launch")
                             .foregroundColor(.green)
                         Spacer()
                     }
                 }
                 
-                TextField("App Name", text: $viewModel.appName)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .textInputAutocapitalization(.never)
-                
-                TextField("Docker Image", text: $viewModel.image)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                
-                HStack {
-                    Text("Region:")
-                    Spacer()
-                    Picker("Region", selection: $viewModel.region) {
-                        Text("Chicago (ord)").tag("ord")
-                        Text("Ashburn (iad)").tag("iad")
-                        Text("Los Angeles (lax)").tag("lax")
-                        Text("London (lhr)").tag("lhr")
+                VStack(spacing: 8) {
+                    HStack {
+                        Text("App:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(viewModel.appName)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                        Spacer()
+                        Text("Region:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(viewModel.region.uppercased())
+                            .font(.caption)
+                            .fontWeight(.medium)
                     }
-                    .pickerStyle(MenuPickerStyle())
+                    
+                    HStack {
+                        Text("Image:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(viewModel.image.split(separator: "/").last?.split(separator: ":").first ?? "Unknown")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                        Spacer()
+                    }
                 }
+                .padding(8)
+                .background(Color(.systemGray6))
+                .cornerRadius(6)
             }
             .padding(.vertical, 8)
         }
