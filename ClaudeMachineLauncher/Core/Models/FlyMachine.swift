@@ -34,11 +34,26 @@ struct MachineService: Codable {
     let ports: [Port]
     let protocolType: String
     let internalPort: Int
+    let autoStopMachines: String?
+    let autoStartMachines: Bool?
+    let minMachinesRunning: Int?
     
     enum CodingKeys: String, CodingKey {
         case ports
         case protocolType = "protocol"
         case internalPort = "internal_port"
+        case autoStopMachines = "auto_stop_machines"
+        case autoStartMachines = "auto_start_machines"
+        case minMachinesRunning = "min_machines_running"
+    }
+    
+    init(ports: [Port], protocolType: String, internalPort: Int, autoStopMachines: String? = "suspend", autoStartMachines: Bool? = true, minMachinesRunning: Int? = 0) {
+        self.ports = ports
+        self.protocolType = protocolType
+        self.internalPort = internalPort
+        self.autoStopMachines = autoStopMachines
+        self.autoStartMachines = autoStartMachines
+        self.minMachinesRunning = minMachinesRunning
     }
 }
 

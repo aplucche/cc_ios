@@ -7,6 +7,8 @@ protocol FlyLaunchServiceProtocol {
     func ensureAppExists(appName: String, token: String) -> AnyPublisher<FlyApp, APIError>
     func deployApp(config: FlyLaunchConfig, token: String) -> AnyPublisher<FlyDeployResponse, APIError>
     func allocateIPs(appName: String, token: String) -> AnyPublisher<Bool, APIError>
+    func startMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError>
+    func stopMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError>
 }
 
 class FlyLaunchService: FlyLaunchServiceProtocol {
@@ -155,4 +157,13 @@ class FlyLaunchService: FlyLaunchServiceProtocol {
         .eraseToAnyPublisher()
     }
     
+    func startMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError> {
+        Logger.log("Service starting machine: \(machineId) for app: \(appName)", category: .system)
+        return apiClient.startMachine(appName: appName, machineId: machineId, token: token)
+    }
+    
+    func stopMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError> {
+        Logger.log("Service stopping machine: \(machineId) for app: \(appName)", category: .system)
+        return apiClient.stopMachine(appName: appName, machineId: machineId, token: token)
+    }
 }

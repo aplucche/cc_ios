@@ -2,6 +2,31 @@ import Foundation
 import Combine
 import SwiftTerm
 
+// Extension to convert Combine publishers to async/await
+extension AnyPublisher {
+    func asyncValue() async throws -> Output {
+        try await withCheckedThrowingContinuation { continuation in
+            var cancellable: AnyCancellable?
+            cancellable = self
+                .sink(
+                    receiveCompletion: { completion in
+                        switch completion {
+                        case .finished:
+                            break
+                        case .failure(let error):
+                            continuation.resume(throwing: error)
+                        }
+                        cancellable?.cancel()
+                    },
+                    receiveValue: { value in
+                        continuation.resume(returning: value)
+                        cancellable?.cancel()
+                    }
+                )
+        }
+    }
+}
+
 struct MachineSession {
     let machine: FlyMachine
     let streamingService: AgentStreamingServiceProtocol
@@ -20,8 +45,11 @@ class SessionManager: ObservableObject {
     @Published var activeSessionId: String?
     
     private var cancellables = Set<AnyCancellable>()
+    private let flyService: FlyLaunchServiceProtocol
     
-    private init() {}
+    private init(flyService: FlyLaunchServiceProtocol = FlyLaunchService()) {
+        self.flyService = flyService
+    }
     
     var activeSession: MachineSession? {
         guard let activeId = activeSessionId else { return nil }
@@ -79,11 +107,63 @@ class SessionManager: ObservableObject {
         Logger.log("Connecting to session: \(machineId)", category: .network)
         
         Task {
-            // Wait for machine to be ready (containers need time to boot)
-            try await Task.sleep(nanoseconds: 10_000_000_000) // 10 seconds
+            await connectWithStateCheck(session: session, machineId: machineId)
+        }
+    }
+    
+    private func connectWithStateCheck(session: MachineSession, machineId: String) async {
+        // First, check current machine state
+        Logger.log("Checking machine state before connection: \(machineId)", category: .network)
+        
+        do {
+            // Get the app name from the session URL
+            let appName = extractAppName(from: session.url)
             
+            let updatedMachine = try await flyService.getMachineStatus(
+                appName: appName,
+                machineId: machineId,
+                token: session.authToken
+            )
+            .asyncValue()
+            
+            Logger.log("Machine \(machineId) state: \(updatedMachine.state)", category: .network)
+            
+            // Update the machine state in AppStateManager
+            await MainActor.run {
+                AppStateManager.shared.updateMachine(updatedMachine)
+            }
+            
+            // If machine is stopped or suspended, start it first
+            if updatedMachine.state == "stopped" || updatedMachine.state == "suspended" {
+                Logger.log("Machine is \(updatedMachine.state), starting it first...", category: .network)
+                
+                try await flyService.startMachine(
+                    appName: appName,
+                    machineId: machineId,
+                    token: session.authToken
+                )
+                .asyncValue()
+                
+                Logger.log("✅ Machine start command sent, waiting for startup...", category: .network)
+                
+                // Wait for machine to start up
+                try await Task.sleep(nanoseconds: 30_000_000_000) // 30 seconds
+            }
+            
+            // Now attempt the connection
+            await attemptConnection(session: session, machineId: machineId, retries: 5)
+            
+        } catch {
+            Logger.log("Failed to check/start machine \(machineId): \(error.localizedDescription)", category: .network)
+            // Fall back to regular connection attempt
             await attemptConnection(session: session, machineId: machineId, retries: 5)
         }
+    }
+    
+    private func extractAppName(from url: String) -> String {
+        // URL format is typically "appname.fly.dev" or similar
+        let components = url.components(separatedBy: ".")
+        return components.first ?? url
     }
     
     private func attemptConnection(session: MachineSession, machineId: String, retries: Int) async {
@@ -208,6 +288,101 @@ class SessionManager: ObservableObject {
         
         activeSessions.removeAll()
         activeSessionId = nil
+    }
+    
+    func refreshMachineState(machineId: String) {
+        guard let session = activeSessions[machineId] else {
+            Logger.log("No session found for machine: \(machineId)", category: .system)
+            return
+        }
+        
+        Logger.log("Refreshing machine state: \(machineId)", category: .network)
+        
+        Task {
+            do {
+                let appName = extractAppName(from: session.url)
+                
+                let updatedMachine = try await flyService.getMachineStatus(
+                    appName: appName,
+                    machineId: machineId,
+                    token: session.authToken
+                )
+                .asyncValue()
+                
+                Logger.log("Machine \(machineId) refreshed state: \(updatedMachine.state)", category: .network)
+                
+                await MainActor.run {
+                    AppStateManager.shared.updateMachine(updatedMachine)
+                }
+            } catch {
+                Logger.log("Failed to refresh machine state: \(error.localizedDescription)", category: .network)
+            }
+        }
+    }
+    
+    func startMachine(machineId: String) {
+        guard let session = activeSessions[machineId] else {
+            Logger.log("No session found for machine: \(machineId)", category: .system)
+            return
+        }
+        
+        Logger.log("Starting machine: \(machineId)", category: .network)
+        
+        Task {
+            do {
+                let appName = extractAppName(from: session.url)
+                
+                try await flyService.startMachine(
+                    appName: appName,
+                    machineId: machineId,
+                    token: session.authToken
+                )
+                .asyncValue()
+                
+                Logger.log("✅ Machine start command sent: \(machineId)", category: .network)
+                
+                // Refresh state after a delay
+                try await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
+                refreshMachineState(machineId: machineId)
+                
+            } catch {
+                Logger.log("Failed to start machine: \(error.localizedDescription)", category: .network)
+            }
+        }
+    }
+    
+    func stopMachine(machineId: String) {
+        guard let session = activeSessions[machineId] else {
+            Logger.log("No session found for machine: \(machineId)", category: .system)
+            return
+        }
+        
+        Logger.log("Stopping machine: \(machineId)", category: .network)
+        
+        Task {
+            do {
+                let appName = extractAppName(from: session.url)
+                
+                try await flyService.stopMachine(
+                    appName: appName,
+                    machineId: machineId,
+                    token: session.authToken
+                )
+                .asyncValue()
+                
+                Logger.log("✅ Machine stop command sent: \(machineId)", category: .network)
+                
+                // Disconnect the session
+                disconnectSession(machineId: machineId)
+                
+                // Refresh state after a delay
+                try await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
+                refreshMachineState(machineId: machineId)
+                
+            } catch {
+                Logger.log("Failed to stop machine: \(error.localizedDescription)", category: .network)
+            }
+        }
     }
 }
 

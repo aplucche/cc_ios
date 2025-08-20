@@ -73,6 +73,27 @@ class MockFlyLaunchService: FlyLaunchServiceProtocol {
         }
     }
     
+    func startMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError> {
+        if shouldSucceed {
+            return Just(())
+                .setFailureType(to: APIError.self)
+                .eraseToAnyPublisher()
+        } else {
+            return Fail(error: APIError.serverError(500))
+                .eraseToAnyPublisher()
+        }
+    }
+    
+    func stopMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError> {
+        if shouldSucceed {
+            return Just(())
+                .setFailureType(to: APIError.self)
+                .eraseToAnyPublisher()
+        } else {
+            return Fail(error: APIError.serverError(500))
+                .eraseToAnyPublisher()
+        }
+    }
 }
 
 struct FlyLaunchViewModelTests {

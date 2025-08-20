@@ -240,4 +240,47 @@ class FlyAPIClient {
             operationName: "Machine status"
         )
     }
+    
+    func startMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError> {
+        Logger.log("Starting machine: \(machineId) for app: \(appName)", category: .network)
+        
+        guard let url = URL(string: "\(baseURL)/apps/\(appName)/machines/\(machineId)/start") else {
+            Logger.log("Invalid URL for starting machine: \(machineId)", category: .network)
+            return Fail(error: APIError.invalidURL)
+                .eraseToAnyPublisher()
+        }
+        
+        return performRequest(
+            url: url,
+            method: "POST",
+            token: token,
+            responseType: EmptyResponse.self,
+            operationName: "Machine start"
+        )
+        .map { _ in () }
+        .eraseToAnyPublisher()
+    }
+    
+    func stopMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError> {
+        Logger.log("Stopping machine: \(machineId) for app: \(appName)", category: .network)
+        
+        guard let url = URL(string: "\(baseURL)/apps/\(appName)/machines/\(machineId)/stop") else {
+            Logger.log("Invalid URL for stopping machine: \(machineId)", category: .network)
+            return Fail(error: APIError.invalidURL)
+                .eraseToAnyPublisher()
+        }
+        
+        return performRequest(
+            url: url,
+            method: "POST",
+            token: token,
+            responseType: EmptyResponse.self,
+            operationName: "Machine stop"
+        )
+        .map { _ in () }
+        .eraseToAnyPublisher()
+    }
 }
+
+// Helper struct for API calls that don't return data
+private struct EmptyResponse: Codable {}

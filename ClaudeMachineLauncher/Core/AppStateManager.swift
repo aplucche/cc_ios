@@ -65,6 +65,20 @@ class AppStateManager: ObservableObject {
         SessionManager.shared.clearAllSessions()
     }
     
+    func updateMachine(_ updatedMachine: FlyMachine) {
+        Logger.log("Updating machine state: \(updatedMachine.id) -> \(updatedMachine.state)", category: .system)
+        
+        if let index = machines.firstIndex(where: { $0.id == updatedMachine.id }) {
+            machines[index] = updatedMachine
+        }
+    }
+    
+    func refreshMachineState(machineId: String) {
+        Logger.log("Refreshing state for machine: \(machineId)", category: .system)
+        // This will be called by UI to trigger state refresh
+        SessionManager.shared.refreshMachineState(machineId: machineId)
+    }
+    
     // MARK: - Legacy support (for backward compatibility)
     var launchedMachineURL: String? {
         guard let machine = selectedMachine else { return nil }

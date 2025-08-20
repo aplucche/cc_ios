@@ -192,66 +192,155 @@ struct MachineRowView: View {
     let onSelect: () -> Void
     let onRemove: () -> Void
     
+    @StateObject private var sessionManager = SessionManager.shared
+    @StateObject private var appState = AppStateManager.shared
+    
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(machine.name)
-                        .font(.headline)
-                        .foregroundColor(isSelected ? .blue : .primary)
-                    
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.blue)
-                            .font(.caption)
+        VStack(spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(machine.name)
+                            .font(.headline)
+                            .foregroundColor(isSelected ? .blue : .primary)
+                        
+                        if isSelected {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.blue)
+                                .font(.caption)
+                        }
                     }
-                }
-                
-                HStack {
-                    Text(machine.id.prefix(8) + "...")
+                    
+                    HStack {
+                        Text(machine.id.prefix(8) + "...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Spacer()
+                        
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(stateColor)
+                                .frame(width: 8, height: 8)
+                            Text(stateDisplayText)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    Text("\(machine.state) • \(machine.region)")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                VStack(spacing: 4) {
+                    HStack(spacing: 6) {
+                        Button(action: {
+                            appState.refreshMachineState(machineId: machine.id)
+                        }) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.borderless)
+                        
+                        if machine.state == "stopped" || machine.state == "suspended" {
+                            Button("Start") {
+                                sessionManager.startMachine(machineId: machine.id)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .font(.caption)
+                        } else if machine.state == "started" || machine.state == "starting" {
+                            Button("Stop") {
+                                sessionManager.stopMachine(machineId: machine.id)
+                            }
+                            .buttonStyle(.bordered)
+                            .font(.caption)
+                        }
+                        
+                        if !isSelected && machine.state == "started" {
+                            Button("Select") {
+                                onSelect()
+                            }
+                            .buttonStyle(.bordered)
+                            .font(.caption)
+                        }
+                    }
+                    
+                    Button(action: onRemove) {
+                        Image(systemName: "trash")
+                            .foregroundColor(.red)
+                    }
+                    .buttonStyle(.borderless)
+                }
+            }
+            
+            // Connection status bar
+            if isSelected {
+                HStack(spacing: 8) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(isConnected ? Color.green : Color.orange)
+                            .frame(width: 6, height: 6)
+                        Text(isConnected ? "Terminal Connected" : "Terminal Disconnected")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                     
                     Spacer()
                     
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(isConnected ? Color.green : Color.red)
-                            .frame(width: 8, height: 8)
-                        Text(isConnected ? "Connected" : "Disconnected")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    if machine.state == "started" && !isConnected {
+                        Button("Connect") {
+                            sessionManager.connectToSession(machineId: machine.id)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .font(.caption2)
                     }
                 }
-                
-                Text("\(machine.state) • \(machine.region)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-            
-            HStack(spacing: 8) {
-                if !isSelected {
-                    Button("Select") {
-                        onSelect()
-                    }
-                    .buttonStyle(.bordered)
-                    .font(.caption)
-                }
-                
-                Button(action: onRemove) {
-                    Image(systemName: "trash")
-                        .foregroundColor(.red)
-                }
-                .buttonStyle(.borderless)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(.systemGray6))
+                .cornerRadius(6)
             }
         }
         .padding()
         .background(isSelected ? Color.blue.opacity(0.1) : Color.clear)
         .cornerRadius(8)
         .onTapGesture {
-            onSelect()
+            if machine.state == "started" {
+                onSelect()
+            }
+        }
+    }
+    
+    private var stateColor: Color {
+        switch machine.state.lowercased() {
+        case "started":
+            return .green
+        case "starting":
+            return .orange
+        case "stopped":
+            return .red
+        case "suspended":
+            return .yellow
+        default:
+            return .gray
+        }
+    }
+    
+    private var stateDisplayText: String {
+        switch machine.state.lowercased() {
+        case "started":
+            return "Running"
+        case "starting":
+            return "Starting"
+        case "stopped":
+            return "Stopped"
+        case "suspended":
+            return "Suspended"
+        default:
+            return machine.state.capitalized
         }
     }
 }
