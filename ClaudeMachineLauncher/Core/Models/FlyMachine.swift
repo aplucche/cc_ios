@@ -58,7 +58,7 @@ struct GuestConfig: Codable {
         case cpuKind = "cpu_kind"
     }
     
-    init(memoryMb: Int = 512, cpus: Int = 1, cpuKind: String = "shared") {
+    init(memoryMb: Int = 1024, cpus: Int = 1, cpuKind: String = "shared") {
         self.memoryMb = memoryMb
         self.cpus = cpus
         self.cpuKind = cpuKind

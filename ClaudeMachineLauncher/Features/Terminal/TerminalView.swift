@@ -9,9 +9,9 @@ struct TerminalView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Active Machine Header
+                // Minimal Machine Info
                 if let activeMachine = appState.selectedMachine {
-                    activeMachineHeader(activeMachine)
+                    minimizedMachineInfo(activeMachine)
                 }
                 
                 if viewModel.isConnected && appState.hasActiveMachine {
@@ -21,65 +21,49 @@ struct TerminalView: View {
                     noSessionView
                 }
             }
-            .navigationTitle("Terminal")
+            .navigationBarHidden(true)
         }
     }
     
-    private func activeMachineHeader(_ machine: FlyMachine) -> some View {
-        VStack(spacing: 8) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Connected to: \(machine.name)")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    
-                    Text("\(machine.id.prefix(12))...fly.dev")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-                
-                HStack(spacing: 8) {
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(viewModel.isConnected ? Color.green : Color.orange)
-                            .frame(width: 8, height: 8)
-                        Text(viewModel.isConnected ? "Connected" : "Connecting...")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    if viewModel.isConnecting {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                    }
-                }
-            }
+    private func minimizedMachineInfo(_ machine: FlyMachine) -> some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(viewModel.isConnected ? Color.green : Color.orange)
+                .frame(width: 6, height: 6)
             
-            Divider()
+            Text(machine.name)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            Spacer()
+            
+            if viewModel.isConnecting {
+                ProgressView()
+                    .scaleEffect(0.5)
+            }
         }
-        .padding(.horizontal)
-        .padding(.top, 8)
-        .background(Color(.systemBackground))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 2)
+        .background(Color(.systemGray6))
     }
     
     private var noSessionView: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 16) {
+            Spacer()
+            
             Image(systemName: "terminal")
-                .font(.system(size: 60))
+                .font(.system(size: 40))
                 .foregroundColor(.secondary)
             
             if appState.hasMachines {
-                VStack(spacing: 16) {
+                VStack(spacing: 12) {
                     Text("No Active Session")
-                        .font(.title2)
+                        .font(.title3)
                         .fontWeight(.medium)
                     
-                    Text("Select a machine from the Agents tab to start a terminal session.")
-                        .font(.body)
+                    Text("Select a machine from the Agents tab")
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
                     
                     Button("Go to Agents") {
                         // This would switch to Agents tab - implement if needed
@@ -87,15 +71,14 @@ struct TerminalView: View {
                     .buttonStyle(.borderedProminent)
                 }
             } else {
-                VStack(spacing: 16) {
+                VStack(spacing: 12) {
                     Text("No Claude Agents")
-                        .font(.title2)
+                        .font(.title3)
                         .fontWeight(.medium)
                     
-                    Text("Launch a Claude agent from the Agents tab to start a terminal session.")
-                        .font(.body)
+                    Text("Launch an agent first")
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
                     
                     Button("Launch Agent") {
                         // This would switch to Agents tab - implement if needed
@@ -107,10 +90,13 @@ struct TerminalView: View {
             if let errorMessage = viewModel.errorMessage {
                 Text(errorMessage)
                     .foregroundColor(.red)
+                    .font(.caption)
                     .padding(.horizontal)
             }
+            
+            Spacer()
         }
-        .padding()
+        .padding(.horizontal)
     }
 }
 

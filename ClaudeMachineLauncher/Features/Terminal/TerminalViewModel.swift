@@ -156,6 +156,10 @@ class TerminalViewModel: ObservableObject {
 // MARK: - TerminalViewDelegate
 extension TerminalViewModel: TerminalViewDelegate {
     func send(source: SwiftTerm.TerminalView, data: ArraySlice<UInt8>) {
+        // Log raw bytes first for debugging
+        let rawBytes = Array(data)
+        Logger.log("Terminal raw input bytes: \(rawBytes.map { String(format: "0x%02X", $0) }.joined(separator: " "))", category: .ui)
+        
         var processedData = data
         
         // Handle special keys for better terminal compatibility
@@ -164,15 +168,17 @@ extension TerminalViewModel: TerminalViewDelegate {
             switch byte {
             case 0x7F: // DEL key - convert to backspace
                 processedData = [0x08] // BS
-            case 0x0D: // CR (carriage return) - convert to newline  
-                processedData = [0x0A] // LF
+                Logger.log("Converted DEL (0x7F) to BS (0x08)", category: .ui)
+            case 0x0D: // CR (carriage return) - try just CR first
+                processedData = [0x0D] // Keep as CR
+                Logger.log("Keeping CR (0x0D) as-is", category: .ui)
             default:
                 break
             }
         }
         
         let string = String(bytes: processedData, encoding: .utf8) ?? ""
-        Logger.log("Terminal input: '\(string.replacingOccurrences(of: "\n", with: "\\n").replacingOccurrences(of: "\u{08}", with: "\\b"))'", category: .ui)
+        Logger.log("Terminal processed input: '\(string.replacingOccurrences(of: "\n", with: "\\n").replacingOccurrences(of: "\r", with: "\\r").replacingOccurrences(of: "\u{08}", with: "\\b"))'", category: .ui)
         sendInput(string)
     }
     

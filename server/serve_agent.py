@@ -142,7 +142,12 @@ class AgentProcess:
             return False
 
     async def _setup_claude_config(self) -> bool:
-        """Set up Claude Code configuration to bypass onboarding"""
+        """Set up Claude Code configuration to bypass onboarding - TEMPORARILY DISABLED"""
+        debug_log("Claude Code configuration setup is TEMPORARILY DISABLED for testing")
+        return False
+        
+        # DISABLED CODE BELOW - uncomment to re-enable Claude config setup
+        """
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
             debug_log("No ANTHROPIC_API_KEY provided, skipping Claude Code setup")
@@ -231,6 +236,7 @@ class AgentProcess:
                 import traceback
                 debug_log(f"Claude Code setup traceback: {traceback.format_exc()}")
             return False
+        """
 
     def _set_terminal_size(self, rows=None, cols=None):
         """Set the terminal size using termios"""
