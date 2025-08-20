@@ -7,21 +7,18 @@ struct TerminalView: View {
     @StateObject private var sessionManager = SessionManager.shared
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                // Minimal Machine Info
-                if let activeMachine = appState.selectedMachine {
-                    minimizedMachineInfo(activeMachine)
-                }
-                
-                if viewModel.isConnected && appState.hasActiveMachine {
-                    TerminalWrapper()
-                        .environmentObject(viewModel)
-                } else {
-                    noSessionView
-                }
+        VStack(spacing: 0) {
+            // Minimal Machine Info
+            if let activeMachine = appState.selectedMachine {
+                minimizedMachineInfo(activeMachine)
             }
-            .navigationBarHidden(true)
+            
+            if viewModel.isConnected && appState.hasActiveMachine {
+                TerminalWrapper()
+                    .environmentObject(viewModel)
+            } else {
+                noSessionView
+            }
         }
     }
     

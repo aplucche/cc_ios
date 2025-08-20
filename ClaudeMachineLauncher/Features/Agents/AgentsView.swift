@@ -7,43 +7,40 @@ struct AgentsView: View {
     @StateObject private var settings = SettingsViewModel.shared
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    configurationSection
-                    
-                    // Machine Discovery Status
-                    if appState.isDiscoveringMachines {
-                        discoverySection
-                    }
-                    
-                    // Active Machines Section
-                    if appState.hasMachines {
-                        activeMachinesSection
-                    }
-                    
-                    // Launch New Machine Section
-                    launchSection
-                    
-                    // Current Machine Status (if launching)
-                    if let machine = viewModel.launchedMachine {
-                        currentMachineSection(machine)
-                    }
-                    
-                    if !viewModel.statusMessage.isEmpty {
-                        statusSection(viewModel.statusMessage)
-                    }
-                    
-                    if let errorMessage = viewModel.errorMessage {
-                        errorSection(errorMessage)
-                    }
+        ScrollView {
+            VStack(spacing: 20) {
+                configurationSection
+                
+                // Machine Discovery Status
+                if appState.isDiscoveringMachines {
+                    discoverySection
                 }
-                .padding()
+                
+                // Active Machines Section
+                if appState.hasMachines {
+                    activeMachinesSection
+                }
+                
+                // Launch New Machine Section
+                launchSection
+                
+                // Current Machine Status (if launching)
+                if let machine = viewModel.launchedMachine {
+                    currentMachineSection(machine)
+                }
+                
+                if !viewModel.statusMessage.isEmpty {
+                    statusSection(viewModel.statusMessage)
+                }
+                
+                if let errorMessage = viewModel.errorMessage {
+                    errorSection(errorMessage)
+                }
             }
-            .navigationTitle("Claude Agents")
-            .onAppear {
-                discoverExistingMachines()
-            }
+            .padding()
+        }
+        .onAppear {
+            discoverExistingMachines()
         }
     }
     

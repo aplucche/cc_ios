@@ -4,14 +4,11 @@ struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel.shared
     
     var body: some View {
-        NavigationView {
-            Form {
-                apiKeysSection
-                flySection
-                claudeSection
-                aboutSection
-            }
-            .navigationTitle("Settings")
+        Form {
+            apiKeysSection
+            flySection
+            claudeSection
+            aboutSection
         }
     }
     
