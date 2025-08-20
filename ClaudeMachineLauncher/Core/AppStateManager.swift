@@ -6,8 +6,14 @@ class AppStateManager: ObservableObject {
     
     @Published var machines: [FlyMachine] = []
     @Published var selectedMachineId: String?
+    @Published var isDiscoveringMachines = false
     
-    private init() {}
+    private let flyService: FlyLaunchServiceProtocol
+    private var cancellables = Set<AnyCancellable>()
+    
+    private init(flyService: FlyLaunchServiceProtocol = FlyLaunchService()) {
+        self.flyService = flyService
+    }
     
     var selectedMachine: FlyMachine? {
         guard let selectedId = selectedMachineId else { return nil }
@@ -77,6 +83,59 @@ class AppStateManager: ObservableObject {
         Logger.log("Refreshing state for machine: \(machineId)", category: .system)
         // This will be called by UI to trigger state refresh
         SessionManager.shared.refreshMachineState(machineId: machineId)
+    }
+    
+    func discoverExistingMachines(appName: String) {
+        let token = SettingsViewModel.shared.flyAPIToken
+        guard !token.isEmpty else {
+            Logger.log("No Fly API token available for machine discovery", category: .system)
+            return
+        }
+        
+        Logger.log("Discovering existing machines for app: \(appName)", category: .system)
+        isDiscoveringMachines = true
+        
+        flyService.listMachines(appName: appName, token: token)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { [weak self] completion in
+                    self?.isDiscoveringMachines = false
+                    switch completion {
+                    case .finished:
+                        Logger.log("Machine discovery completed", category: .system)
+                    case .failure(let error):
+                        Logger.log("Machine discovery failed: \(error.localizedDescription)", category: .system)
+                        // Don't treat this as a fatal error - user can still launch new machines
+                    }
+                },
+                receiveValue: { [weak self] discoveredMachines in
+                    Logger.log("Discovered \(discoveredMachines.count) existing machines", category: .system)
+                    self?.integrateMachines(discoveredMachines, appName: appName, token: token)
+                }
+            )
+            .store(in: &cancellables)
+    }
+    
+    private func integrateMachines(_ discoveredMachines: [FlyMachine], appName: String, token: String) {
+        for machine in discoveredMachines {
+            if let existingIndex = machines.firstIndex(where: { $0.id == machine.id }) {
+                // Update existing machine with latest state
+                Logger.log("Updating existing machine: \(machine.name) (\(machine.id)) - State: \(machine.state)", category: .system)
+                machines[existingIndex] = machine
+            } else {
+                // Add new machine
+                Logger.log("Integrating new machine: \(machine.name) (\(machine.id)) - State: \(machine.state)", category: .system)
+                machines.append(machine)
+                
+                // Create session for this new machine  
+                SessionManager.shared.createSession(for: machine, appName: appName, authToken: token)
+            }
+        }
+        
+        // Select the first machine if none is selected and we have machines
+        if selectedMachineId == nil, let firstMachine = machines.first {
+            selectMachine(firstMachine.id)
+        }
     }
     
     // MARK: - Legacy support (for backward compatibility)

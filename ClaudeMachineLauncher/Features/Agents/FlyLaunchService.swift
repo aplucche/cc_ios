@@ -9,6 +9,7 @@ protocol FlyLaunchServiceProtocol {
     func allocateIPs(appName: String, token: String) -> AnyPublisher<Bool, APIError>
     func startMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError>
     func stopMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError>
+    func listMachines(appName: String, token: String) -> AnyPublisher<[FlyMachine], APIError>
 }
 
 class FlyLaunchService: FlyLaunchServiceProtocol {
@@ -165,5 +166,10 @@ class FlyLaunchService: FlyLaunchServiceProtocol {
     func stopMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError> {
         Logger.log("Service stopping machine: \(machineId) for app: \(appName)", category: .system)
         return apiClient.stopMachine(appName: appName, machineId: machineId, token: token)
+    }
+    
+    func listMachines(appName: String, token: String) -> AnyPublisher<[FlyMachine], APIError> {
+        Logger.log("Service listing machines for app: \(appName)", category: .system)
+        return apiClient.listMachines(appName: appName, token: token)
     }
 }

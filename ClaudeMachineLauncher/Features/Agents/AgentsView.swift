@@ -12,6 +12,11 @@ struct AgentsView: View {
                 VStack(spacing: 20) {
                     configurationSection
                     
+                    // Machine Discovery Status
+                    if appState.isDiscoveringMachines {
+                        discoverySection
+                    }
+                    
                     // Active Machines Section
                     if appState.hasMachines {
                         activeMachinesSection
@@ -36,6 +41,9 @@ struct AgentsView: View {
                 .padding()
             }
             .navigationTitle("Claude Agents")
+            .onAppear {
+                discoverExistingMachines()
+            }
         }
     }
     
@@ -83,9 +91,41 @@ struct AgentsView: View {
         }
     }
     
+    private var discoverySection: some View {
+        GroupBox("Discovering Machines") {
+            HStack {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .blue))
+                    .scaleEffect(0.8)
+                Text("Looking for existing machines...")
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+            .padding(.vertical, 8)
+        }
+    }
+    
     private var activeMachinesSection: some View {
         GroupBox("Active Machines") {
             VStack(spacing: 12) {
+                HStack {
+                    Text("Machines (\(appState.machines.count))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        let appName = viewModel.appName
+                        appState.discoverExistingMachines(appName: appName)
+                    }) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(appState.isDiscoveringMachines)
+                }
+                
                 ForEach(appState.machines, id: \.id) { machine in
                     MachineRowView(
                         machine: machine,
@@ -182,6 +222,24 @@ struct AgentsView: View {
                 Spacer()
             }
         }
+    }
+    
+    private func discoverExistingMachines() {
+        // Only discover if we have API keys and no machines yet (for automatic discovery on startup)
+        guard settings.hasRequiredAPIKeys else {
+            Logger.log("Skipping machine discovery - no API keys", category: .system)
+            return
+        }
+        
+        guard !appState.hasMachines else {
+            Logger.log("Skipping automatic machine discovery - already have machines", category: .system)
+            return
+        }
+        
+        // Use the app name from the launch configuration
+        let appName = viewModel.appName
+        Logger.log("Starting automatic machine discovery for app: \(appName)", category: .system)
+        appState.discoverExistingMachines(appName: appName)
     }
 }
 

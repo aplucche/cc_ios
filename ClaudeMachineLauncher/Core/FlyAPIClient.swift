@@ -241,6 +241,24 @@ class FlyAPIClient {
         )
     }
     
+    func listMachines(appName: String, token: String) -> AnyPublisher<[FlyMachine], APIError> {
+        Logger.log("Listing machines for app: \(appName)", category: .network)
+        
+        guard let url = URL(string: "\(baseURL)/apps/\(appName)/machines") else {
+            Logger.log("Invalid URL for listing machines in app: \(appName)", category: .network)
+            return Fail(error: APIError.invalidURL)
+                .eraseToAnyPublisher()
+        }
+        
+        return performRequest(
+            url: url,
+            method: "GET",
+            token: token,
+            responseType: [FlyMachine].self,
+            operationName: "List machines"
+        )
+    }
+    
     func startMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError> {
         Logger.log("Starting machine: \(machineId) for app: \(appName)", category: .network)
         

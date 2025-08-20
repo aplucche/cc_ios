@@ -94,6 +94,19 @@ class MockFlyLaunchService: FlyLaunchServiceProtocol {
                 .eraseToAnyPublisher()
         }
     }
+    
+    func listMachines(appName: String, token: String) -> AnyPublisher<[FlyMachine], APIError> {
+        if shouldSucceed {
+            // Return mock machine if available, otherwise empty array
+            let machines = mockMachine != nil ? [mockMachine!] : []
+            return Just(machines)
+                .setFailureType(to: APIError.self)
+                .eraseToAnyPublisher()
+        } else {
+            return Fail(error: APIError.serverError(500))
+                .eraseToAnyPublisher()
+        }
+    }
 }
 
 struct FlyLaunchViewModelTests {
