@@ -93,20 +93,9 @@ class SessionManager: ObservableObject {
             }
             .store(in: &cancellables)
         
-        // Set as active if it's the first/only session
-        DispatchQueue.main.async { [weak self] in
-            if self?.activeSessionId == nil {
-                self?.activeSessionId = machine.id
-            }
-        }
-        
-        // Auto-connect to the session with delay
-        Task {
-            try await Task.sleep(nanoseconds: 5_000_000_000) // 5 second delay
-            await MainActor.run { [weak self] in
-                self?.connectToSession(machineId: machine.id)
-            }
-        }
+        // Do NOT auto-set as active or auto-connect
+        // Let AppStateManager explicitly control which machine is selected
+        // Only the explicitly selected machine should connect
     }
     
     func connectToSession(machineId: String) {
