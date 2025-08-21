@@ -445,6 +445,55 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
         )
     return credentials.credentials
 
+# Global agents and git setup tracking
+agents: dict[str, AgentProcess] = {}
+git_setup_done = False
+
+async def setup_git_if_needed():
+    """Simple git setup that runs once on first connection"""
+    global git_setup_done
+    if git_setup_done:
+        return
+        
+    git_username = os.getenv("GIT_USERNAME")
+    git_token = os.getenv("GIT_TOKEN")
+    git_repo_url = os.getenv("GIT_REPO_URL")
+    git_branch = os.getenv("GIT_BRANCH", "main")
+    
+    if not all([git_username, git_token, git_repo_url]):
+        debug_log("No git environment variables, skipping git setup")
+        return
+        
+    try:
+        import pathlib
+        import subprocess
+        
+        home_dir = pathlib.Path.home()
+        repo_name = git_repo_url.split('/')[-1].replace('.git', '')
+        repo_path = home_dir / repo_name
+        
+        if not repo_path.exists():
+            debug_log(f"Cloning git repository: {git_repo_url}")
+            subprocess.run(["git", "config", "--global", "user.name", git_username], check=True, capture_output=True)
+            subprocess.run(["git", "config", "--global", "user.email", f"{git_username}@users.noreply.github.com"], check=True, capture_output=True)
+            
+            # Use PAT as username for GitHub auth
+            auth_url = git_repo_url.replace("https://", f"https://{git_token}@")
+            result = subprocess.run([
+                "git", "clone", "-b", git_branch, auth_url, str(repo_path)
+            ], capture_output=True, text=True, timeout=30)
+            
+            if result.returncode == 0:
+                debug_log(f"Git repository cloned successfully to {repo_path}")
+            else:
+                debug_log(f"Git clone failed: {result.stderr}")
+        else:
+            debug_log(f"Git repository already exists at {repo_path}")
+            
+        git_setup_done = True
+    except Exception as e:
+        debug_log(f"Git setup error: {e}")
+
 
 @app.get("/")
 async def health_check():
@@ -458,6 +507,9 @@ async def websocket_endpoint(websocket: WebSocket, agent_id: str):
     try:
         # Verify auth token from query params or headers
         # In a real implementation, you'd verify the token here
+        
+        # Setup git repository immediately on connection (independent of agent)
+        await setup_git_if_needed()
         
         # Get or create agent
         if agent_id not in agents:
