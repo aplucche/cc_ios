@@ -127,7 +127,7 @@ class SessionManager: ObservableObject {
         var components = URLComponents()
         components.scheme = "wss"
         components.host = session.url
-        components.path = "/agents/default/stream"
+        components.path = "/agents/\(machineId)/stream"
         
         guard let wsURL = components.url else {
             Logger.log("Invalid WebSocket URL for: \(session.url)", category: .network)
