@@ -253,6 +253,12 @@ class AgentProcess:
         git_repo_url = os.getenv("GIT_REPO_URL")
         git_branch = os.getenv("GIT_BRANCH", "main")
         
+        # Debug: log all git-related environment variables
+        debug_log(f"Git environment check - USERNAME: {'SET' if git_username else 'MISSING'}")
+        debug_log(f"Git environment check - TOKEN: {'SET' if git_token else 'MISSING'}")
+        debug_log(f"Git environment check - REPO_URL: {'SET' if git_repo_url else 'MISSING'}")
+        debug_log(f"Git environment check - BRANCH: {git_branch}")
+        
         if not all([git_username, git_token, git_repo_url]):
             debug_log("Git environment variables not found, skipping repository setup")
             return
