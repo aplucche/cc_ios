@@ -88,6 +88,8 @@ class KeychainManager {
     func clearAllKeys() {
         _ = deleteKey(forService: "flyapi")
         _ = deleteKey(forService: "anthropic")
+        _ = deleteKey(forService: "git-username")
+        _ = deleteKey(forService: "git-token")
         Logger.log("Cleared all API keys from keychain", category: .system)
     }
 }
@@ -96,4 +98,6 @@ class KeychainManager {
 extension KeychainManager {
     static let flyAPIService = "flyapi"
     static let anthropicAPIService = "anthropic"
+    static let gitUsernameService = "git-username"
+    static let gitTokenService = "git-token"
 }

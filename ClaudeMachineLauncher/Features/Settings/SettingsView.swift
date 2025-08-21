@@ -6,6 +6,7 @@ struct SettingsView: View {
     var body: some View {
         Form {
             apiKeysSection
+            gitSection
             flySection
             claudeSection
             aboutSection
@@ -30,10 +31,36 @@ struct SettingsView: View {
                 }
             }
             
-            Button("Clear API Keys", role: .destructive) {
+            Button("Clear All Keys", role: .destructive) {
                 viewModel.clearAPIKeys()
             }
-            .disabled(!viewModel.hasRequiredAPIKeys)
+            .disabled(!viewModel.hasRequiredAPIKeys && !viewModel.hasGitCredentials)
+        }
+    }
+    
+    private var gitSection: some View {
+        Section(header: Text("Git Integration"), 
+                footer: Text("GitHub username and Personal Access Token for repository access. Repositories can be selected when launching machines.")) {
+            TextField("GitHub Username", text: $viewModel.gitUsername)
+                .textInputAutocapitalization(.never)
+            
+            SecureField("Personal Access Token", text: $viewModel.gitToken)
+                .textInputAutocapitalization(.never)
+            
+            if viewModel.hasGitCredentials {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text("Git credentials saved")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            NavigationLink("Manage Repositories (\(viewModel.repositories.count))") {
+                RepositoryManagementView()
+                    .environmentObject(viewModel)
+            }
         }
     }
     

@@ -43,6 +43,9 @@ class AgentProcess:
     async def start_process(self):
         """Start a real shell using PTY"""
         try:
+            # First setup git repository if git environment variables are present
+            await self._setup_git_repository()
+            
             # First setup Claude configuration (needed before availability check)
             config_success = await self._setup_claude_config()
             
@@ -99,6 +102,11 @@ class AgentProcess:
                     env['DISABLE_TELEMETRY'] = '1' 
                     env['DISABLE_ERROR_REPORTING'] = '1'
                     env['DISABLE_BUG_COMMAND'] = '1'
+                
+                # Pass through git environment variables
+                for git_var in ['GIT_USERNAME', 'GIT_TOKEN', 'GIT_REPO_URL', 'GIT_BRANCH']:
+                    if git_var in os.environ:
+                        env[git_var] = os.environ[git_var]
                 
                 os.execvpe(command[0], command, env)
             else:
@@ -237,6 +245,72 @@ class AgentProcess:
                 debug_log(f"Claude Code setup traceback: {traceback.format_exc()}")
             return False
         """
+        
+    async def _setup_git_repository(self):
+        """Clone git repository if git environment variables are present"""
+        git_username = os.getenv("GIT_USERNAME")
+        git_token = os.getenv("GIT_TOKEN")
+        git_repo_url = os.getenv("GIT_REPO_URL")
+        git_branch = os.getenv("GIT_BRANCH", "main")
+        
+        if not all([git_username, git_token, git_repo_url]):
+            debug_log("Git environment variables not found, skipping repository setup")
+            return
+        
+        debug_log(f"Setting up git repository: {git_repo_url}")
+        
+        try:
+            import pathlib
+            home_dir = pathlib.Path.home()
+            repo_name = git_repo_url.split('/')[-1].replace('.git', '')
+            repo_path = home_dir / repo_name
+            
+            # Configure git with credentials
+            debug_log("Configuring git credentials")
+            subprocess.run(["git", "config", "--global", "user.name", git_username], check=True, capture_output=True)
+            subprocess.run(["git", "config", "--global", "user.email", f"{git_username}@users.noreply.github.com"], check=True, capture_output=True)
+            
+            # Clone repository if it doesn't exist
+            if not repo_path.exists():
+                debug_log(f"Cloning repository to {repo_path}")
+                
+                # Create authenticated URL
+                if "github.com" in git_repo_url:
+                    auth_url = git_repo_url.replace("https://", f"https://{git_username}:{git_token}@")
+                else:
+                    auth_url = git_repo_url  # For other git providers, might need different auth format
+                
+                result = subprocess.run([
+                    "git", "clone", "-b", git_branch, auth_url, str(repo_path)
+                ], capture_output=True, text=True, timeout=30)
+                
+                if result.returncode == 0:
+                    debug_log(f"Successfully cloned repository to {repo_path}")
+                    
+                    # Change to repository directory for the shell session
+                    os.chdir(repo_path)
+                    debug_log(f"Changed working directory to {repo_path}")
+                else:
+                    debug_log(f"Failed to clone repository: {result.stderr}")
+            else:
+                debug_log(f"Repository already exists at {repo_path}")
+                os.chdir(repo_path)
+                
+                # Try to pull latest changes
+                try:
+                    result = subprocess.run(["git", "pull"], capture_output=True, text=True, timeout=15, cwd=repo_path)
+                    if result.returncode == 0:
+                        debug_log("Successfully pulled latest changes")
+                    else:
+                        debug_log(f"Failed to pull changes: {result.stderr}")
+                except subprocess.TimeoutExpired:
+                    debug_log("Git pull timed out")
+                
+        except Exception as e:
+            debug_log(f"Git repository setup error: {type(e).__name__}: {e}")
+            if DEBUG:
+                import traceback
+                debug_log(f"Git setup traceback: {traceback.format_exc()}")
 
     def _set_terminal_size(self, rows=None, cols=None):
         """Set the terminal size using termios"""

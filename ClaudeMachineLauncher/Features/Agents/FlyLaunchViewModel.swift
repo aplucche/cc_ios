@@ -5,6 +5,7 @@ class FlyLaunchViewModel: ObservableObject {
     @Published var appName: String
     @Published var image: String
     @Published var region: String
+    @Published var selectedRepository: GitRepository?
     
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
@@ -80,11 +81,18 @@ class FlyLaunchViewModel: ObservableObject {
             envVars["ANTHROPIC_API_KEY"] = settings.claudeAPIKey
         }
         
+        // Add git credentials if repository is selected and credentials are available
+        if selectedRepository != nil && settings.hasGitCredentials {
+            envVars["GIT_USERNAME"] = settings.gitUsername
+            envVars["GIT_TOKEN"] = settings.gitToken
+        }
+        
         let config = FlyLaunchConfig(
             appName: appName,
             image: image,
             region: region,
-            env: envVars
+            env: envVars,
+            selectedRepository: selectedRepository
         )
         
         isLoading = true

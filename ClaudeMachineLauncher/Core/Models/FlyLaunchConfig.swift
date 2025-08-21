@@ -6,13 +6,15 @@ struct FlyLaunchConfig {
     let region: String
     let env: [String: String]
     let internalPort: Int
+    let selectedRepository: GitRepository?
     
-    init(appName: String, image: String, region: String = "ord", env: [String: String] = [:], internalPort: Int = 8080) {
+    init(appName: String, image: String, region: String = "ord", env: [String: String] = [:], internalPort: Int = 8080, selectedRepository: GitRepository? = nil) {
         self.appName = appName
         self.image = image
         self.region = region
         self.env = env
         self.internalPort = internalPort
+        self.selectedRepository = selectedRepository
     }
     
     func toMachineConfig() -> MachineConfig {
@@ -25,9 +27,17 @@ struct FlyLaunchConfig {
             internalPort: internalPort
         )
         
+        var machineEnv = env
+        
+        // Add git environment variables if repository is selected
+        if let repository = selectedRepository {
+            machineEnv["GIT_REPO_URL"] = repository.url
+            machineEnv["GIT_BRANCH"] = repository.branch
+        }
+        
         return MachineConfig(
             image: image,
-            env: env.isEmpty ? nil : env,
+            env: machineEnv.isEmpty ? nil : machineEnv,
             services: [service],
             guest: GuestConfig(memoryMb: 1024)
         )

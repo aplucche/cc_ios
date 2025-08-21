@@ -91,6 +91,18 @@ struct AgentsView: View {
                             .fontWeight(.medium)
                         Spacer()
                     }
+                    
+                    if let repository = viewModel.selectedRepository {
+                        HStack {
+                            Text("Repository:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(repository.displayName)
+                                .font(.caption)
+                                .fontWeight(.medium)
+                            Spacer()
+                        }
+                    }
                 }
                 .padding(8)
                 .background(Color(.systemGray6))
@@ -156,6 +168,23 @@ struct AgentsView: View {
     private var launchSection: some View {
         GroupBox("Launch New Machine") {
             VStack(spacing: 16) {
+                // Repository Selection
+                if settings.hasGitCredentials && !settings.repositories.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Repository (Optional)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Picker("Repository", selection: $viewModel.selectedRepository) {
+                            Text("No Repository").tag(GitRepository?.none)
+                            ForEach(settings.repositories) { repository in
+                                Text(repository.displayName).tag(repository as GitRepository?)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                }
+                
                 Button(action: {
                     viewModel.launchMachine()
                 }) {

@@ -1,41 +1,37 @@
 # Claude Machine Launcher
 
-iOS terminal app for launching and connecting to Fly.io machines with shell access.
+iOS app for launching Fly.io machines and connecting via terminal.
+
+## Current Status
+
+The app launches Fly.io machines using the REST API and provides terminal access through WebSocket connections. Core functionality is working with recent improvements to terminal session management and UI responsiveness.
 
 ## Quick Start
 
 ```bash
-# Use centralized commands via Makefile
 make ios-build    # Build iOS app
 make ios-test     # Run tests
 make help         # See all commands
 ```
 
-## Features
+## What It Does
 
-### Terminal Features
-- **PTY-based Shell**: Connect to bash/zsh running in Fly.io containers
-- **Terminal Features**: Command history, tab completion, ANSI colors, line editing
-- **SwiftTerm Integration**: Terminal emulation with Unicode support
+Launch cloud machines from iOS and connect to them through a terminal interface. The app handles machine lifecycle (start, stop, suspend) and maintains persistent terminal sessions that survive app backgrounding.
 
-### Cloud Infrastructure
-- **Fly.io Integration**: Launch machines using REST API (no CLI needed)
-- **Multi-Session Management**: Handle multiple persistent terminal connections
-- **Container Deployment**: Deploy containers with public hostnames
-- **Container**: Custom `ghcr.io/aplucche/cc_ios-claude-agent:latest`
+### Key Features
+- Launch Fly.io machines with custom containers
+- Terminal access with command history and ANSI color support
+- Multiple persistent terminal sessions
+- Automatic machine discovery and reconnection
+- Configurable container images and machine settings
 
-### iOS Architecture  
-- **Feature Pods**: Clean separation (Agents, Terminal, Settings)
-- **Combine/SwiftUI**: Reactive architecture with proper state management
-- **WebSocket Bridge**: Bidirectional communication with heartbeat
-- **Message Buffering**: Ensures no terminal output is lost during view transitions
+## How to Use
 
-## Usage
-
-1. **Get Fly API Token**: [fly.io/user/personal_access_tokens](https://fly.io/user/personal_access_tokens)
-2. **Launch Machine**: Enter API token and app name, tap "Launch Machine"
-3. **Terminal Access**: Switch to Terminal tab for full shell experience
-4. **Real Commands**: Run `ls`, `cd`, `vim`, `htop`, `curl`, etc. in your cloud container
+1. Get a Fly API token from [fly.io/user/personal_access_tokens](https://fly.io/user/personal_access_tokens)
+2. Open the app and enter your API token in Settings
+3. Go to Agents tab, enter an app name, and tap "Launch Machine"
+4. Switch to Terminal tab to connect to your running machine
+5. Use standard shell commands in your cloud environment
 
 ## Development
 
