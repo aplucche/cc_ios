@@ -280,9 +280,9 @@ class AgentProcess:
             if not repo_path.exists():
                 debug_log(f"Cloning repository to {repo_path}")
                 
-                # Create authenticated URL
+                # Create authenticated URL - GitHub requires PAT as username with empty password
                 if "github.com" in git_repo_url:
-                    auth_url = git_repo_url.replace("https://", f"https://{git_username}:{git_token}@")
+                    auth_url = git_repo_url.replace("https://", f"https://{git_token}@")
                 else:
                     auth_url = git_repo_url  # For other git providers, might need different auth format
                 
