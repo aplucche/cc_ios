@@ -53,26 +53,45 @@ struct AgentsView: View {
     }
     
     private var activeMachinesSection: some View {
-        GroupBox("Active Machines") {
-            VStack(spacing: 12) {
-                HStack {
-                    Text("Machines (\(appState.machines.count))")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        let appName = viewModel.appName
-                        appState.discoverExistingMachines(appName: appName)
-                    }) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.caption)
-                    }
-                    .buttonStyle(.borderless)
-                    .disabled(appState.isDiscoveringMachines)
-                }
+        VStack(spacing: 0) {
+            // Header with subtle styling
+            HStack {
+                Text("Active Machines")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
                 
+                Text("\(appState.machines.count)")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(Color(.systemGray5))
+                    .cornerRadius(8)
+                
+                Spacer()
+                
+                Button(action: {
+                    let appName = viewModel.appName
+                    appState.discoverExistingMachines(appName: appName)
+                }) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.blue)
+                        .padding(8)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(8)
+                }
+                .disabled(appState.isDiscoveringMachines)
+                .opacity(appState.isDiscoveringMachines ? 0.5 : 1.0)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 24)
+            .padding(.bottom, 16)
+            
+            // Machine cards
+            LazyVStack(spacing: 12) {
                 ForEach(appState.machines, id: \.id) { machine in
                     MachineRowView(
                         machine: machine,
@@ -91,55 +110,114 @@ struct AgentsView: View {
                     )
                 }
             }
-            .padding(.vertical, 8)
+            .padding(.horizontal, 20)
         }
     }
     
     private var launchSection: some View {
-        GroupBox("Launch New Machine") {
-            VStack(spacing: 16) {
-                // Configuration Info (collapsed from separate section)
-                VStack(spacing: 8) {
+        VStack(spacing: 0) {
+            // Header with subtle styling
+            HStack {
+                Text("Launch New Machine")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 24)
+            .padding(.bottom, 16)
+            
+            // Content card with elegant styling
+            VStack(spacing: 20) {
+                // Status indicator with refined styling
+                HStack {
                     if !settings.hasRequiredAPIKeys {
-                        HStack {
-                            Image(systemName: "exclamationmark.triangle.fill")
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                            .font(.system(size: 16, weight: .medium))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Setup Required")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
                                 .foregroundColor(.orange)
                             Text("Please add API keys in Settings")
                                 .font(.caption)
-                                .foregroundColor(.orange)
-                            Spacer()
+                                .foregroundColor(.secondary)
                         }
                     } else {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                            Text("Ready to launch")
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.system(size: 16, weight: .medium))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Ready to Launch")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.primary)
+                            Text("All requirements satisfied")
                                 .font(.caption)
-                                .foregroundColor(.green)
-                            Spacer()
+                                .foregroundColor(.secondary)
                         }
+                    }
+                    Spacer()
+                }
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(settings.hasRequiredAPIKeys ? Color.green.opacity(0.05) : Color.orange.opacity(0.05))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(settings.hasRequiredAPIKeys ? Color.green.opacity(0.2) : Color.orange.opacity(0.2), lineWidth: 1)
+                        )
+                )
+                
+                // Configuration details with better typography
+                VStack(spacing: 12) {
+                    HStack {
+                        Label("App", systemImage: "app.fill")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(viewModel.appName)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
                     }
                     
                     HStack {
-                        Text("App: \(viewModel.appName)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text("Region: \(viewModel.region.uppercased())")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .padding(8)
-                .background(Color(.systemGray6))
-                .cornerRadius(6)
-                
-                // Repository Selection
-                if settings.hasGitCredentials && !settings.repositories.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Repository (Optional)")
+                        Label("Region", systemImage: "globe")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                        Spacer()
+                        Text(viewModel.region.uppercased())
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                    }
+                }
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(.systemGray6))
+                        .opacity(0.5)
+                )
+                
+                // Repository selection with improved styling
+                if settings.hasGitCredentials && !settings.repositories.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Label("Repository", systemImage: "folder.fill")
+                                .font(.subheadline)
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Text("Optional")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Color(.systemGray5))
+                                .cornerRadius(4)
+                        }
                         
                         Picker("Repository", selection: $viewModel.selectedRepository) {
                             Text("No Repository").tag(GitRepository?.none)
@@ -149,28 +227,59 @@ struct AgentsView: View {
                         }
                         .pickerStyle(.menu)
                     }
+                    .padding(16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(.systemBackground))
+                            .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+                    )
                 }
                 
+                // Launch button with refined styling
                 Button(action: {
                     viewModel.launchMachine()
                 }) {
-                    HStack {
+                    HStack(spacing: 8) {
                         if viewModel.isLoading {
                             ProgressView()
                                 .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                .scaleEffect(0.8)
+                                .scaleEffect(0.9)
+                        } else {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 14, weight: .semibold))
                         }
                         Text(viewModel.isLoading ? (viewModel.statusMessage.isEmpty ? "Launching..." : viewModel.statusMessage) : "Launch New Agent")
+                            .font(.system(size: 16, weight: .semibold))
                     }
                     .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(viewModel.canLaunch ? Color.blue : Color.gray)
+                    .frame(height: 52)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: viewModel.canLaunch ? 
+                                        [Color.blue, Color.blue.opacity(0.8)] : 
+                                        [Color.gray, Color.gray.opacity(0.8)]
+                                    ),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .shadow(color: viewModel.canLaunch ? Color.blue.opacity(0.3) : Color.clear, radius: 8, x: 0, y: 4)
+                    )
                     .foregroundColor(.white)
-                    .cornerRadius(10)
                 }
                 .disabled(!viewModel.canLaunch)
+                .scaleEffect(viewModel.canLaunch ? 1.0 : 0.95)
+                .animation(.easeInOut(duration: 0.2), value: viewModel.canLaunch)
             }
-            .padding(.vertical, 8)
+            .padding(20)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
+            )
+            .padding(.horizontal, 20)
         }
     }
     
@@ -252,123 +361,166 @@ struct MachineRowView: View {
     }
     
     var body: some View {
-        VStack(spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 6) {
-                    // Repository name (emphasized)
-                    HStack {
+        VStack(spacing: 16) {
+            HStack(spacing: 16) {
+                // Repository and machine info section
+                VStack(alignment: .leading, spacing: 8) {
+                    // Repository name with refined styling
+                    HStack(spacing: 8) {
                         if repositoryInfo.hasRepo {
                             Image(systemName: "folder.fill")
+                                .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(.blue)
-                                .font(.caption)
+                        } else {
+                            Image(systemName: "server.rack")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.gray)
                         }
+                        
                         Text(repositoryInfo.name)
-                            .font(.headline)
-                            .fontWeight(.medium)
+                            .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(isSelected ? .blue : .primary)
+                            .lineLimit(1)
                         
                         if isSelected {
                             Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(.blue)
-                                .font(.caption)
                         }
                     }
                     
-                    // Machine name (secondary)
+                    // Machine name with better hierarchy
                     Text(machine.name)
-                        .font(.caption)
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundColor(.secondary)
+                        .lineLimit(1)
                     
-                    // State indicator (compact)
+                    // Status indicator with refined design (no machine ID to reduce clutter)
                     HStack(spacing: 4) {
                         Circle()
                             .fill(stateColor)
-                            .frame(width: 8, height: 8)
+                            .frame(width: 6, height: 6)
                         Text(stateDisplayText)
-                            .font(.caption)
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundColor(.secondary)
                         Spacer()
-                        
-                        // Machine ID (deemphasized, shorter)
-                        Text(machine.id.prefix(8) + "...")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
                     }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(stateColor.opacity(0.15))
+                    .cornerRadius(6)
                 }
                 
                 Spacer()
                 
-                VStack(spacing: 6) {
-                    // Single primary action button (does the logical next step)
+                // Action buttons section
+                VStack(spacing: 8) {
+                    // Primary action button with refined styling
                     if sessionManager.loadingMachines.contains(machine.id) {
                         Button(action: {}) {
                             HStack(spacing: 4) {
                                 ProgressView()
                                     .scaleEffect(0.7)
+                                    .tint(.white)
                                 Text(loadingText)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .lineLimit(1)
                             }
+                            .frame(minWidth: 70, maxWidth: 90, minHeight: 28, maxHeight: 28)
                         }
                         .buttonStyle(.borderedProminent)
-                        .font(.caption)
                         .disabled(true)
                     } else {
-                        // Handle special states first
                         if machine.state.lowercased() == "starting" {
-                            Button("Starting...") {}
+                            Button("Starting") {}
+                                .font(.system(size: 12, weight: .medium))
+                                .frame(minWidth: 70, maxWidth: 90, minHeight: 28, maxHeight: 28)
                                 .buttonStyle(.bordered)
-                                .font(.caption)
                                 .disabled(true)
                         } else if isSelected {
-                            // Currently active machine - allow suspending
                             Button("Suspend") {
                                 sessionManager.suspendMachine(machineId: machine.id)
                             }
+                            .font(.system(size: 12, weight: .medium))
+                            .frame(minWidth: 70, maxWidth: 90, minHeight: 28, maxHeight: 28)
                             .buttonStyle(.bordered)
-                            .font(.caption)
+                            .tint(.orange)
                         } else {
-                            // Any non-active machine (stopped, suspended, or started-but-not-selected)
                             Button("Use") {
                                 if machine.state.lowercased() == "stopped" || machine.state.lowercased() == "suspended" {
-                                    // For stopped/suspended machines, start them first
                                     sessionManager.startMachine(machineId: machine.id)
                                 }
-                                // Always select to make active (SessionManager handles resume logic)
                                 onSelect()
                             }
+                            .font(.system(size: 12, weight: .semibold))
+                            .frame(minWidth: 70, maxWidth: 90, minHeight: 28, maxHeight: 28)
                             .buttonStyle(.borderedProminent)
-                            .font(.caption)
                         }
                     }
                     
-                    // Secondary actions
+                    // Remove button with refined styling
                     Button(action: onRemove) {
-                        Image(systemName: "trash")
+                        Image(systemName: "trash.fill")
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundColor(.red)
+                            .frame(width: 24, height: 24)
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(5)
                     }
-                    .buttonStyle(.borderless)
                 }
             }
             
-            // Connection status bar (simplified)
+            // Connection status indicator (refined)
             if isSelected {
-                HStack(spacing: 4) {
+                HStack(spacing: 8) {
                     Circle()
                         .fill(isConnected ? Color.green : Color.orange)
-                        .frame(width: 6, height: 6)
+                        .frame(width: 4, height: 4)
+                    
                     Text(isConnected ? "Terminal Connected" : "Connecting...")
-                        .font(.caption2)
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.secondary)
+                    
                     Spacer()
+                    
+                    if isConnected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(.green)
+                    }
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color(.systemGray6))
-                .cornerRadius(6)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(isConnected ? Color.green.opacity(0.05) : Color.orange.opacity(0.05))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(isConnected ? Color.green.opacity(0.2) : Color.orange.opacity(0.2), lineWidth: 0.5)
+                        )
+                )
             }
         }
-        .padding()
-        .background(isSelected ? Color.blue.opacity(0.1) : Color.clear)
-        .cornerRadius(8)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(
+                            isSelected ? Color.blue.opacity(0.3) : Color(.separator).opacity(0.2), 
+                            lineWidth: isSelected ? 1.5 : 0.5
+                        )
+                )
+                .shadow(
+                    color: isSelected ? Color.blue.opacity(0.15) : Color.black.opacity(0.05), 
+                    radius: isSelected ? 8 : 4, 
+                    x: 0, 
+                    y: isSelected ? 4 : 2
+                )
+        )
+        .scaleEffect(isSelected ? 1.02 : 1.0)
+        .animation(.easeInOut(duration: 0.2), value: isSelected)
     }
     
     private var stateColor: Color {
