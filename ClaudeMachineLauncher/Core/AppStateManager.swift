@@ -132,9 +132,17 @@ class AppStateManager: ObservableObject {
             }
         }
         
-        // Select the first machine if none is selected and we have machines
-        if selectedMachineId == nil, let firstMachine = machines.first {
-            selectMachine(firstMachine.id)
+        // Select a machine on startup if none is selected
+        if selectedMachineId == nil, !machines.isEmpty {
+            // Prefer to select a "started" machine first (user likely wants to use it)
+            if let startedMachine = machines.first(where: { $0.state.lowercased() == "started" }) {
+                selectMachine(startedMachine.id)
+            } else if let firstMachine = machines.first {
+                // If no started machines, select first but don't auto-resume (just mark as selected)
+                selectedMachineId = firstMachine.id
+                // Don't call selectMachine() to avoid auto-resuming suspended machines
+                Logger.log("Auto-selected suspended/stopped machine without resuming: \(firstMachine.id)", category: .system)
+            }
         }
     }
     

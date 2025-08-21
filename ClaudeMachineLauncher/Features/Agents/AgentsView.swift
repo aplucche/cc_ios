@@ -9,8 +9,6 @@ struct AgentsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                configurationSection
-                
                 // Machine Discovery Status
                 if appState.isDiscoveringMachines {
                     discoverySection
@@ -21,13 +19,8 @@ struct AgentsView: View {
                     activeMachinesSection
                 }
                 
-                // Launch New Machine Section
+                // Combined Launch Section (was Configuration + Launch)
                 launchSection
-                
-                // Current Machine Status (if launching)
-                if let machine = viewModel.launchedMachine {
-                    currentMachineSection(machine)
-                }
                 
                 if !viewModel.statusMessage.isEmpty {
                     statusSection(viewModel.statusMessage)
@@ -44,73 +37,6 @@ struct AgentsView: View {
         }
     }
     
-    private var configurationSection: some View {
-        GroupBox("Configuration") {
-            VStack(spacing: 12) {
-                if !settings.hasRequiredAPIKeys {
-                    HStack {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundColor(.orange)
-                        Text("Please add API keys in Settings")
-                            .foregroundColor(.orange)
-                        Spacer()
-                    }
-                } else {
-                    HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("Ready to launch")
-                            .foregroundColor(.green)
-                        Spacer()
-                    }
-                }
-                
-                VStack(spacing: 8) {
-                    HStack {
-                        Text("App:")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(viewModel.appName)
-                            .font(.caption)
-                            .fontWeight(.medium)
-                        Spacer()
-                        Text("Region:")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(viewModel.region.uppercased())
-                            .font(.caption)
-                            .fontWeight(.medium)
-                    }
-                    
-                    HStack {
-                        Text("Image:")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(viewModel.image.split(separator: "/").last?.split(separator: ":").first ?? "Unknown")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                        Spacer()
-                    }
-                    
-                    if let repository = viewModel.selectedRepository {
-                        HStack {
-                            Text("Repository:")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text(repository.displayName)
-                                .font(.caption)
-                                .fontWeight(.medium)
-                            Spacer()
-                        }
-                    }
-                }
-                .padding(8)
-                .background(Color(.systemGray6))
-                .cornerRadius(6)
-            }
-            .padding(.vertical, 8)
-        }
-    }
     
     private var discoverySection: some View {
         GroupBox("Discovering Machines") {
@@ -151,9 +77,13 @@ struct AgentsView: View {
                     MachineRowView(
                         machine: machine,
                         isSelected: appState.selectedMachineId == machine.id,
-                        isConnected: sessionManager.connectionStates[machine.id] ?? false,
+                        isConnected: (sessionManager.connectionStates[machine.id] ?? false) && (sessionManager.activeSessionId == machine.id),
                         onSelect: {
                             appState.selectMachine(machine.id)
+                            // For started machines, also ensure connection
+                            if machine.state == "started" {
+                                sessionManager.connectToSession(machineId: machine.id)
+                            }
                         },
                         onRemove: {
                             appState.removeMachine(machine.id)
@@ -168,6 +98,42 @@ struct AgentsView: View {
     private var launchSection: some View {
         GroupBox("Launch New Machine") {
             VStack(spacing: 16) {
+                // Configuration Info (collapsed from separate section)
+                VStack(spacing: 8) {
+                    if !settings.hasRequiredAPIKeys {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                            Text("Please add API keys in Settings")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            Spacer()
+                        }
+                    } else {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Ready to launch")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                            Spacer()
+                        }
+                    }
+                    
+                    HStack {
+                        Text("App: \(viewModel.appName)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("Region: \(viewModel.region.uppercased())")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(8)
+                .background(Color(.systemGray6))
+                .cornerRadius(6)
+                
                 // Repository Selection
                 if settings.hasGitCredentials && !settings.repositories.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
@@ -208,34 +174,6 @@ struct AgentsView: View {
         }
     }
     
-    private func currentMachineSection(_ machine: FlyMachine) -> some View {
-        GroupBox("Machine Status") {
-            VStack(alignment: .leading, spacing: 12) {
-                InfoRow(label: "ID", value: machine.id)
-                InfoRow(label: "Name", value: machine.name)
-                InfoRow(label: "State", value: machine.state)
-                InfoRow(label: "Region", value: machine.region)
-                
-                if let privateIP = machine.privateIP {
-                    InfoRow(label: "Private IP", value: privateIP)
-                }
-                
-                HStack(spacing: 12) {
-                    Button("Refresh Status") {
-                        viewModel.refreshStatus()
-                    }
-                    .buttonStyle(.bordered)
-                    
-                    Button("Launch New") {
-                        viewModel.clearMachine()
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                .padding(.top, 8)
-            }
-            .padding(.vertical, 8)
-        }
-    }
     
     private func statusSection(_ message: String) -> some View {
         GroupBox {
@@ -291,13 +229,42 @@ struct MachineRowView: View {
     @EnvironmentObject private var sessionManager: SessionManager
     @EnvironmentObject private var appState: AppStateManager
     
+    private var repositoryInfo: (name: String, hasRepo: Bool) {
+        if let env = machine.config?.env,
+           let repoUrl = env["GIT_REPO_URL"] {
+            let repoName = repoUrl.components(separatedBy: "/").last?.replacingOccurrences(of: ".git", with: "") ?? "Unknown Repository"
+            return (repoName, true)
+        }
+        return ("No Repository", false)
+    }
+    
+    private var loadingText: String {
+        switch machine.state.lowercased() {
+        case "starting":
+            return "Starting..."
+        case "stopped", "suspended":
+            return "Starting..."
+        case "started":
+            return "Suspending..."
+        default:
+            return "Processing..."
+        }
+    }
+    
     var body: some View {
         VStack(spacing: 12) {
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 6) {
+                    // Repository name (emphasized)
                     HStack {
-                        Text(machine.name)
+                        if repositoryInfo.hasRepo {
+                            Image(systemName: "folder.fill")
+                                .foregroundColor(.blue)
+                                .font(.caption)
+                        }
+                        Text(repositoryInfo.name)
                             .font(.headline)
+                            .fontWeight(.medium)
                             .foregroundColor(isSelected ? .blue : .primary)
                         
                         if isSelected {
@@ -307,81 +274,73 @@ struct MachineRowView: View {
                         }
                     }
                     
-                    HStack {
-                        Text(machine.id.prefix(8) + "...")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        Spacer()
-                        
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(stateColor)
-                                .frame(width: 8, height: 8)
-                            Text(stateDisplayText)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    
-                    Text("\(machine.state) • \(machine.region)")
+                    // Machine name (secondary)
+                    Text(machine.name)
                         .font(.caption)
                         .foregroundColor(.secondary)
+                    
+                    // State indicator (compact)
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(stateColor)
+                            .frame(width: 8, height: 8)
+                        Text(stateDisplayText)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        
+                        // Machine ID (deemphasized, shorter)
+                        Text(machine.id.prefix(8) + "...")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 
                 Spacer()
                 
-                VStack(spacing: 4) {
-                    HStack(spacing: 6) {
-                        Button(action: {
-                            appState.refreshMachineState(machineId: machine.id)
-                        }) {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.caption)
-                        }
-                        .buttonStyle(.borderless)
-                        
-                        if machine.state == "stopped" || machine.state == "suspended" {
-                            Button {
-                                sessionManager.startMachine(machineId: machine.id)
-                            } label: {
-                                HStack(spacing: 4) {
-                                    if sessionManager.loadingMachines.contains(machine.id) {
-                                        ProgressView()
-                                            .scaleEffect(0.7)
-                                    }
-                                    Text(sessionManager.loadingMachines.contains(machine.id) ? "Starting..." : "Start")
-                                }
+                VStack(spacing: 6) {
+                    // Single primary action button (does the logical next step)
+                    if sessionManager.loadingMachines.contains(machine.id) {
+                        Button(action: {}) {
+                            HStack(spacing: 4) {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                Text(loadingText)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .font(.caption)
-                            .disabled(sessionManager.loadingMachines.contains(machine.id))
-                        } else if machine.state == "started" || machine.state == "starting" {
-                            Button {
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .font(.caption)
+                        .disabled(true)
+                    } else {
+                        // Handle special states first
+                        if machine.state.lowercased() == "starting" {
+                            Button("Starting...") {}
+                                .buttonStyle(.bordered)
+                                .font(.caption)
+                                .disabled(true)
+                        } else if isSelected {
+                            // Currently active machine - allow suspending
+                            Button("Suspend") {
                                 sessionManager.suspendMachine(machineId: machine.id)
-                            } label: {
-                                HStack(spacing: 4) {
-                                    if sessionManager.loadingMachines.contains(machine.id) {
-                                        ProgressView()
-                                            .scaleEffect(0.7)
-                                    }
-                                    Text(sessionManager.loadingMachines.contains(machine.id) ? "Suspending..." : "Suspend")
-                                }
                             }
                             .buttonStyle(.bordered)
                             .font(.caption)
-                            .disabled(sessionManager.loadingMachines.contains(machine.id))
-                        }
-                        
-                        if !isSelected && machine.state == "started" {
-                            Button("Select") {
+                        } else {
+                            // Any non-active machine (stopped, suspended, or started-but-not-selected)
+                            Button("Use") {
+                                if machine.state.lowercased() == "stopped" || machine.state.lowercased() == "suspended" {
+                                    // For stopped/suspended machines, start them first
+                                    sessionManager.startMachine(machineId: machine.id)
+                                }
+                                // Always select to make active (SessionManager handles resume logic)
                                 onSelect()
                             }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(.borderedProminent)
                             .font(.caption)
                         }
                     }
                     
+                    // Secondary actions
                     Button(action: onRemove) {
                         Image(systemName: "trash")
                             .foregroundColor(.red)
@@ -390,28 +349,16 @@ struct MachineRowView: View {
                 }
             }
             
-            // Connection status bar
+            // Connection status bar (simplified)
             if isSelected {
-                HStack(spacing: 8) {
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(isConnected ? Color.green : Color.orange)
-                            .frame(width: 6, height: 6)
-                        Text(isConnected ? "Terminal Connected" : "Terminal Disconnected")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    if machine.state == "started" && !isConnected {
-                        Button("Connect") {
-                            appState.selectMachine(machine.id)
-                            sessionManager.connectToSession(machineId: machine.id)
-                        }
-                        .buttonStyle(.borderedProminent)
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(isConnected ? Color.green : Color.orange)
+                        .frame(width: 6, height: 6)
+                    Text(isConnected ? "Terminal Connected" : "Connecting...")
                         .font(.caption2)
-                    }
+                        .foregroundColor(.secondary)
+                    Spacer()
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -422,9 +369,6 @@ struct MachineRowView: View {
         .padding()
         .background(isSelected ? Color.blue.opacity(0.1) : Color.clear)
         .cornerRadius(8)
-        .onTapGesture {
-            onSelect()
-        }
     }
     
     private var stateColor: Color {
