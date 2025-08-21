@@ -298,6 +298,47 @@ class FlyAPIClient {
         .map { _ in () }
         .eraseToAnyPublisher()
     }
+    
+    func suspendMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError> {
+        Logger.log("Suspending machine: \(machineId) for app: \(appName)", category: .network)
+        
+        guard let url = URL(string: "\(baseURL)/apps/\(appName)/machines/\(machineId)/suspend") else {
+            Logger.log("Invalid URL for suspending machine: \(machineId)", category: .network)
+            return Fail(error: APIError.invalidURL)
+                .eraseToAnyPublisher()
+        }
+        
+        return performRequest(
+            url: url,
+            method: "POST",
+            token: token,
+            responseType: EmptyResponse.self,
+            operationName: "Machine suspend"
+        )
+        .map { _ in () }
+        .eraseToAnyPublisher()
+    }
+    
+    func resumeMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError> {
+        Logger.log("Resuming machine: \(machineId) for app: \(appName)", category: .network)
+        
+        // Resume uses the same endpoint as start
+        guard let url = URL(string: "\(baseURL)/apps/\(appName)/machines/\(machineId)/start") else {
+            Logger.log("Invalid URL for resuming machine: \(machineId)", category: .network)
+            return Fail(error: APIError.invalidURL)
+                .eraseToAnyPublisher()
+        }
+        
+        return performRequest(
+            url: url,
+            method: "POST",
+            token: token,
+            responseType: EmptyResponse.self,
+            operationName: "Machine resume"
+        )
+        .map { _ in () }
+        .eraseToAnyPublisher()
+    }
 }
 
 // Helper struct for API calls that don't return data

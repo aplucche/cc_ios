@@ -153,20 +153,75 @@ class SessionManager: ObservableObject {
             return
         }
         
-        // Disconnect all other sessions first
-        for (id, session) in activeSessions {
-            if id != machineId {
-                session.streamingService.disconnect()
-                connectionStates[id] = false
-            }
+        Logger.log("Setting active session: \(machineId)", category: .system)
+        
+        // Step 1: Suspend currently active machine (if different)
+        if let previousActiveId = activeSessionId, previousActiveId != machineId {
+            suspendPreviousMachine(previousActiveId)
         }
         
-        Logger.log("Setting active session: \(machineId)", category: .system)
+        // Step 2: Set new active session
         activeSessionId = machineId
         
-        // Connect to the new active session if not already connected
-        if connectionStates[machineId] != true {
-            connectToSession(machineId: machineId)
+        // Step 3: Resume target machine and connect when ready
+        resumeAndConnect(machineId: machineId)
+    }
+    
+    private func suspendPreviousMachine(_ machineId: String) {
+        guard let session = activeSessions[machineId] else { return }
+        
+        Logger.log("Suspending previous machine: \(machineId)", category: .network)
+        
+        // Disconnect WebSocket immediately
+        session.streamingService.disconnect()
+        connectionStates[machineId] = false
+        
+        // Suspend machine asynchronously (don't wait)
+        Task {
+            do {
+                let appName = extractAppName(from: session.url)
+                try await flyService.suspendMachine(
+                    appName: appName,
+                    machineId: machineId,
+                    token: session.authToken
+                ).asyncValue()
+                
+                Logger.log("✅ Machine suspended: \(machineId)", category: .network)
+            } catch {
+                Logger.log("Failed to suspend machine \(machineId): \(error.localizedDescription)", category: .network)
+            }
+        }
+    }
+    
+    private func resumeAndConnect(machineId: String) {
+        guard let session = activeSessions[machineId] else { return }
+        
+        Logger.log("Resuming and connecting to machine: \(machineId)", category: .network)
+        
+        Task {
+            do {
+                let appName = extractAppName(from: session.url)
+                
+                // Resume machine (wait for completion)
+                try await flyService.resumeMachine(
+                    appName: appName,
+                    machineId: machineId,
+                    token: session.authToken
+                ).asyncValue()
+                
+                Logger.log("✅ Machine resumed: \(machineId)", category: .network)
+                
+                // Wait a moment for machine to be ready
+                try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                
+                // Connect terminal
+                await MainActor.run {
+                    self.connectToSession(machineId: machineId)
+                }
+                
+            } catch {
+                Logger.log("Failed to resume machine \(machineId): \(error.localizedDescription)", category: .network)
+            }
         }
     }
     
@@ -311,6 +366,47 @@ class SessionManager: ObservableObject {
                 
             } catch {
                 Logger.log("Failed to stop machine: \(error.localizedDescription)", category: .network)
+            }
+            
+            await MainActor.run {
+                self.loadingMachines.remove(machineId)
+            }
+        }
+    }
+    
+    func suspendMachine(machineId: String) {
+        guard let session = activeSessions[machineId] else {
+            Logger.log("No session found for machine: \(machineId)", category: .system)
+            return
+        }
+        
+        loadingMachines.insert(machineId)
+        Logger.log("Suspending machine: \(machineId)", category: .network)
+        
+        Task {
+            do {
+                let appName = extractAppName(from: session.url)
+                
+                try await flyService.suspendMachine(
+                    appName: appName,
+                    machineId: machineId,
+                    token: session.authToken
+                )
+                .asyncValue()
+                
+                Logger.log("✅ Machine suspend command sent: \(machineId)", category: .network)
+                
+                // Disconnect the session
+                await MainActor.run {
+                    self.disconnectSession(machineId: machineId)
+                }
+                
+                // Refresh state after a delay
+                try await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
+                refreshMachineState(machineId: machineId)
+                
+            } catch {
+                Logger.log("Failed to suspend machine: \(error.localizedDescription)", category: .network)
             }
             
             await MainActor.run {

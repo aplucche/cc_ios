@@ -358,14 +358,14 @@ struct MachineRowView: View {
                             .disabled(sessionManager.loadingMachines.contains(machine.id))
                         } else if machine.state == "started" || machine.state == "starting" {
                             Button {
-                                sessionManager.stopMachine(machineId: machine.id)
+                                sessionManager.suspendMachine(machineId: machine.id)
                             } label: {
                                 HStack(spacing: 4) {
                                     if sessionManager.loadingMachines.contains(machine.id) {
                                         ProgressView()
                                             .scaleEffect(0.7)
                                     }
-                                    Text(sessionManager.loadingMachines.contains(machine.id) ? "Stopping..." : "Stop")
+                                    Text(sessionManager.loadingMachines.contains(machine.id) ? "Suspending..." : "Suspend")
                                 }
                             }
                             .buttonStyle(.bordered)
