@@ -2,20 +2,14 @@ import SwiftUI
 
 struct AgentsView: View {
     @StateObject private var viewModel = FlyLaunchViewModel()
-    @EnvironmentObject private var appState: AppStateManager
-    @EnvironmentObject private var sessionManager: SessionManager
+    @StateObject private var machineState = MachineStateManager.shared
     @EnvironmentObject private var settings: SettingsViewModel
     
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // Machine Discovery Status
-                if appState.isDiscoveringMachines {
-                    discoverySection
-                }
-                
                 // Active Machines Section
-                if appState.hasMachines {
+                if !machineState.machines.isEmpty {
                     activeMachinesSection
                 }
                 
@@ -38,19 +32,6 @@ struct AgentsView: View {
     }
     
     
-    private var discoverySection: some View {
-        GroupBox("Discovering Machines") {
-            HStack {
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: .blue))
-                    .scaleEffect(0.8)
-                Text("Looking for existing machines...")
-                    .foregroundColor(.secondary)
-                Spacer()
-            }
-            .padding(.vertical, 8)
-        }
-    }
     
     private var activeMachinesSection: some View {
         VStack(spacing: 0) {
@@ -61,7 +42,7 @@ struct AgentsView: View {
                     .fontWeight(.semibold)
                     .foregroundColor(.primary)
                 
-                Text("\(appState.machines.count)")
+                Text("\(machineState.machines.count)")
                     .font(.caption)
                     .fontWeight(.medium)
                     .foregroundColor(.secondary)
@@ -73,8 +54,7 @@ struct AgentsView: View {
                 Spacer()
                 
                 Button(action: {
-                    let appName = viewModel.appName
-                    appState.discoverExistingMachines(appName: appName)
+                    machineState.refreshAllMachines()
                 }) {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 14, weight: .medium))
@@ -83,8 +63,6 @@ struct AgentsView: View {
                         .background(Color.blue.opacity(0.1))
                         .cornerRadius(8)
                 }
-                .disabled(appState.isDiscoveringMachines)
-                .opacity(appState.isDiscoveringMachines ? 0.5 : 1.0)
             }
             .padding(.horizontal, 20)
             .padding(.top, 24)
@@ -92,22 +70,17 @@ struct AgentsView: View {
             
             // Machine cards
             LazyVStack(spacing: 12) {
-                ForEach(appState.machines, id: \.id) { machine in
-                    MachineRowView(
-                        machine: machine,
-                        isSelected: appState.selectedMachineId == machine.id,
-                        isConnected: (sessionManager.connectionStates[machine.id] ?? false) && (sessionManager.activeSessionId == machine.id),
-                        onSelect: {
-                            appState.selectMachine(machine.id)
-                            // For started machines, also ensure connection
-                            if machine.state == "started" {
-                                sessionManager.connectToSession(machineId: machine.id)
+                ForEach(machineState.machines, id: \.id) { machine in
+                    if let uiState = machineState.uiState(for: machine.id) {
+                        MachineCardView(uiState: uiState) { action in
+                            machineState.performAction(action, on: machine.id)
+                            
+                            // Set as active when activating
+                            if action == .activate {
+                                machineState.setActiveMachine(machine.id)
                             }
-                        },
-                        onRemove: {
-                            appState.deleteMachine(machine.id)
                         }
-                    )
+                    }
                 }
             }
             .padding(.horizontal, 20)
@@ -316,205 +289,13 @@ struct AgentsView: View {
             return
         }
         
-        guard !appState.hasMachines else {
+        guard machineState.machines.isEmpty else {
             Logger.log("Skipping automatic machine discovery - already have machines", category: .system)
             return
         }
         
-        // Use the app name from the launch configuration
-        let appName = viewModel.appName
-        Logger.log("Starting automatic machine discovery for app: \(appName)", category: .system)
-        appState.discoverExistingMachines(appName: appName)
-    }
-}
-
-struct MachineRowView: View {
-    let machine: FlyMachine
-    let isSelected: Bool
-    let isConnected: Bool
-    let onSelect: () -> Void
-    let onRemove: () -> Void
-    
-    @EnvironmentObject private var sessionManager: SessionManager
-    @EnvironmentObject private var appState: AppStateManager
-    
-    private var repositoryInfo: (name: String, hasRepo: Bool) {
-        if let env = machine.config?.env,
-           let repoUrl = env["GIT_REPO_URL"] {
-            let repoName = repoUrl.components(separatedBy: "/").last?.replacingOccurrences(of: ".git", with: "") ?? "Unknown Repository"
-            return (repoName, true)
-        }
-        return ("No Repository", false)
-    }
-    
-    // Simplified status text combining state and connection
-    private var statusText: String {
-        switch machine.state.lowercased() {
-        case "started":
-            return isConnected ? "Running" : "Connecting..."
-        case "starting":
-            return "Starting..."
-        case "stopped", "suspended":
-            return "Suspended"
-        default:
-            return machine.state.capitalized
-        }
-    }
-    
-    // Simplified status color
-    private var statusColor: Color {
-        switch machine.state.lowercased() {
-        case "started":
-            return isConnected ? .green : .orange
-        case "starting":
-            return .orange
-        case "stopped", "suspended":
-            return .gray
-        default:
-            return .gray
-        }
-    }
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            HStack(spacing: 16) {
-                // Repository and machine info section
-                VStack(alignment: .leading, spacing: 8) {
-                    // Repository name with refined styling
-                    HStack(spacing: 8) {
-                        if repositoryInfo.hasRepo {
-                            Image(systemName: "folder.fill")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.blue)
-                        } else {
-                            Image(systemName: "server.rack")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.gray)
-                        }
-                        
-                        Text(repositoryInfo.name)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.primary)
-                            .lineLimit(1)
-                    }
-                    
-                    // Machine name with better hierarchy
-                    Text(machine.name)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                    
-                    // Simplified status - combines machine state + connection
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(statusColor)
-                            .frame(width: 6, height: 6)
-                        Text(statusText)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(statusColor.opacity(0.15))
-                    .cornerRadius(6)
-                }
-                
-                Spacer()
-                
-                // Simplified action buttons: Button1 | Button2
-                HStack(spacing: 8) {
-                    // Button 1: Primary action
-                    if sessionManager.loadingMachines.contains(machine.id) {
-                        // Loading state - show spinner
-                        Button(action: {}) {
-                            HStack(spacing: 4) {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                                    .tint(.white)
-                                Text(statusText)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .lineLimit(1)
-                            }
-                            .frame(minWidth: 70, maxWidth: 90, minHeight: 28, maxHeight: 28)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(true)
-                    } else {
-                        switch machine.state.lowercased() {
-                        case "started":
-                            // Running machine - pause button
-                            Button(action: {
-                                sessionManager.suspendMachine(machineId: machine.id)
-                            }) {
-                                Image(systemName: "pause.fill")
-                                    .font(.system(size: 12, weight: .medium))
-                            }
-                            .frame(width: 32, height: 28)
-                            .buttonStyle(.bordered)
-                            .tint(.orange)
-                            
-                        case "stopped", "suspended":
-                            // Inactive machine - activate button
-                            Button("Activate") {
-                                sessionManager.startMachine(machineId: machine.id)
-                                onSelect()
-                            }
-                            .font(.system(size: 12, weight: .semibold))
-                            .frame(minWidth: 70, maxWidth: 90, minHeight: 28, maxHeight: 28)
-                            .buttonStyle(.borderedProminent)
-                            
-                        default:
-                            // Starting state - disabled button
-                            Button("Starting") {}
-                                .font(.system(size: 12, weight: .medium))
-                                .frame(minWidth: 70, maxWidth: 90, minHeight: 28, maxHeight: 28)
-                                .buttonStyle(.bordered)
-                                .disabled(true)
-                        }
-                    }
-                    
-                    // Button 2: Delete (only for suspended/stopped machines)
-                    if machine.state.lowercased() == "stopped" || machine.state.lowercased() == "suspended" {
-                        if !sessionManager.loadingMachines.contains(machine.id) {
-                            Button(action: onRemove) {
-                                Image(systemName: "trash.fill")
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(.red)
-                            }
-                            .frame(width: 32, height: 28)
-                            .buttonStyle(.bordered)
-                            .tint(.red)
-                        }
-                    }
-                }
-            }
-        }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color(.separator).opacity(0.2), lineWidth: 0.5)
-                )
-                .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
-        )
-    }
-}
-
-struct InfoRow: View {
-    let label: String
-    let value: String
-    
-    var body: some View {
-        HStack {
-            Text(label + ":")
-                .fontWeight(.medium)
-            Spacer()
-            Text(value)
-                .foregroundColor(.secondary)
-        }
+        Logger.log("Starting automatic machine discovery", category: .system)
+        machineState.refreshAllMachines()
     }
 }
 

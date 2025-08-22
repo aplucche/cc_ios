@@ -10,74 +10,90 @@ class TerminalViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var messageBuffer: [String] = []
     
-    // Direct access to SessionManager state instead of duplicating
-    var activeSessionId: String? { SessionManager.shared.activeSessionId }
-    var activeMachineName: String? { SessionManager.shared.activeSession?.machine.name }
+    // Direct access to MachineStateManager state
+    var activeSessionId: String? { MachineStateManager.shared.activeMachineId }
+    var activeMachineName: String? { MachineStateManager.shared.activeMachine?.name }
     var isConnected: Bool { 
         guard let activeId = activeSessionId else { return false }
-        return SessionManager.shared.connectionStates[activeId] ?? false
+        return MachineStateManager.shared.isConnected(machineId: activeId)
     }
-    var isConnecting: Bool { SessionManager.shared.loadingMachines.contains(activeSessionId ?? "") }
+    var isConnecting: Bool { 
+        guard let activeId = activeSessionId else { return false }
+        return MachineStateManager.shared.uiState(for: activeId)?.operation == .connecting
+    }
     
     init() {
         setupBindings()
     }
     
     private func setupBindings() {
-        // Monitor session changes to bind messages and trigger UI updates
-        SessionManager.shared.$activeSessionId
+        // Monitor active machine changes and rebind to streaming service
+        MachineStateManager.shared.$activeMachineId
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
+            .sink { [weak self] activeId in
                 self?.objectWillChange.send() // Trigger UI update for computed properties
-                if let session = SessionManager.shared.activeSession {
-                    self?.bindToSession(session)
+                self?.bindToActiveStreamingService(activeId)
+            }
+            .store(in: &cancellables)
+        
+        // Monitor UI state changes for connection and operation updates
+        // This will trigger rebinding when machines become connected
+        MachineStateManager.shared.$uiStates
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] uiStates in
+                self?.objectWillChange.send() // Trigger UI update
+                
+                // Check if active machine just became connected - rebind if so
+                if let activeId = MachineStateManager.shared.activeMachineId,
+                   let activeState = uiStates[activeId],
+                   activeState.isConnected {
+                    self?.bindToActiveStreamingService(activeId)
                 }
-            }
-            .store(in: &cancellables)
-        
-        // Monitor connection state changes for UI updates
-        SessionManager.shared.$connectionStates
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.objectWillChange.send() // Trigger UI update
-            }
-            .store(in: &cancellables)
-        
-        // Monitor loading state changes for UI updates
-        SessionManager.shared.$loadingMachines
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.objectWillChange.send() // Trigger UI update
             }
             .store(in: &cancellables)
     }
     
-    private var sessionCancellables = Set<AnyCancellable>()
+    private var streamingCancellables = Set<AnyCancellable>()
     
-    private func bindToSession(_ session: MachineSession) {
-        // Clear previous session bindings to avoid duplicates
-        sessionCancellables.removeAll()
+    private func bindToActiveStreamingService(_ machineId: String?) {
+        // Clear previous bindings
+        streamingCancellables.removeAll()
         
-        // Only bind to messages - connection state is handled by SessionManager
-        session.streamingService.messages
+        guard let machineId = machineId else {
+            Logger.log("No active machine to bind to", category: .ui)
+            return
+        }
+        
+        // KEY FIX: Only bind if streaming service exists AND machine is connected
+        guard let streamingService = MachineStateManager.shared.getStreamingService(for: machineId),
+              MachineStateManager.shared.isConnected(machineId: machineId) else {
+            Logger.log("No streaming service or not connected for machine: \(machineId) - will retry when connected", category: .ui)
+            return
+        }
+        
+        Logger.log("Binding terminal to streaming service for machine: \(machineId)", category: .ui)
+        
+        // Bind to messages from the active machine's streaming service
+        streamingService.messages
             .receive(on: DispatchQueue.main)
             .sink { [weak self] message in
                 Logger.log("TerminalViewModel received message: '\(message.prefix(100))'", category: .ui)
                 self?.handleIncomingMessage(message)
             }
-            .store(in: &sessionCancellables)
+            .store(in: &streamingCancellables)
         
-        // Handle errors from connection failures
-        session.streamingService.connectionState
+        // Handle connection state changes
+        streamingService.connectionState
             .receive(on: DispatchQueue.main)
             .sink { [weak self] state in
+                Logger.log("TerminalViewModel connection state for \(machineId): \(state)", category: .ui)
                 if case .failed(let error) = state {
                     self?.errorMessage = error.localizedDescription
                 } else {
                     self?.errorMessage = nil
                 }
             }
-            .store(in: &sessionCancellables)
+            .store(in: &streamingCancellables)
     }
     
     private func handleIncomingMessage(_ message: String) {
@@ -108,16 +124,10 @@ class TerminalViewModel: ObservableObject {
     }
     
     
-    func disconnect() {
-        if let activeId = activeSessionId {
-            SessionManager.shared.disconnectSession(machineId: activeId)
-        }
-    }
-    
     func sendInput(_ input: String) {
         Task {
             do {
-                try await SessionManager.shared.sendToActiveSession(input)
+                try await MachineStateManager.shared.sendTerminalMessage(input)
             } catch {
                 Logger.log("Failed to send input: \(error)", category: .network)
                 await MainActor.run {
@@ -170,7 +180,7 @@ extension TerminalViewModel: TerminalViewDelegate {
         
         Task {
             let sizeMessage = "{\"type\":\"resize\",\"rows\":\(newRows),\"cols\":\(newCols)}"
-            try? await SessionManager.shared.sendToActiveSession(sizeMessage)
+            try? await MachineStateManager.shared.sendTerminalMessage(sizeMessage)
         }
     }
     

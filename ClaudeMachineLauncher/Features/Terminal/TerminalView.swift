@@ -3,8 +3,7 @@ import SwiftTerm
 
 struct TerminalView: View {
     @StateObject private var viewModel = TerminalViewModel()
-    @EnvironmentObject private var appState: AppStateManager
-    @EnvironmentObject private var sessionManager: SessionManager
+    @StateObject private var machineState = MachineStateManager.shared
     
     var body: some View {
         VStack(spacing: 0) {
@@ -13,7 +12,7 @@ struct TerminalView: View {
                 minimizedMachineInfo(machineName)
             }
             
-            if viewModel.isConnected && appState.hasActiveMachine {
+            if viewModel.isConnected && machineState.activeMachine != nil {
                 TerminalWrapper()
                     .environmentObject(viewModel)
             } else {
@@ -52,7 +51,7 @@ struct TerminalView: View {
                 .font(.system(size: 40))
                 .foregroundColor(.secondary)
             
-            if appState.hasMachines {
+            if !machineState.machines.isEmpty {
                 VStack(spacing: 12) {
                     Text("No Active Session")
                         .font(.title3)

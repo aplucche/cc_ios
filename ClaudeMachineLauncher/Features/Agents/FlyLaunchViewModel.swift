@@ -117,8 +117,8 @@ class FlyLaunchViewModel: ObservableObject {
                     self?.errorMessage = nil
                     self?.statusMessage = ""
                     
-                    // Add machine to multi-session management
-                    AppStateManager.shared.addMachine(machine, appName: self?.appName ?? "", token: self?.settings.flyAPIToken ?? "")
+                    // Add machine to unified state management
+                    MachineStateManager.shared.refreshAllMachines()
                 }
             )
             .store(in: &cancellables)
@@ -154,7 +154,7 @@ class FlyLaunchViewModel: ObservableObject {
         launchedMachine = nil
         errorMessage = nil
         statusMessage = ""
-        AppStateManager.shared.clearAllMachines()
+        // Clear launched machine data only - machines are managed by MachineStateManager
     }
     
     private func constructMachineURL(machine: FlyMachine) -> String? {
