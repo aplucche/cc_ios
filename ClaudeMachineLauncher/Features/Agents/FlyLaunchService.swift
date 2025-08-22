@@ -11,6 +11,7 @@ protocol FlyLaunchServiceProtocol {
     func stopMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError>
     func suspendMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError>
     func resumeMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError>
+    func deleteMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError>
     func listMachines(appName: String, token: String) -> AnyPublisher<[FlyMachine], APIError>
 }
 
@@ -183,5 +184,10 @@ class FlyLaunchService: FlyLaunchServiceProtocol {
     func listMachines(appName: String, token: String) -> AnyPublisher<[FlyMachine], APIError> {
         Logger.log("Service listing machines for app: \(appName)", category: .system)
         return apiClient.listMachines(appName: appName, token: token)
+    }
+    
+    func deleteMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError> {
+        Logger.log("Service deleting machine: \(machineId) for app: \(appName)", category: .system)
+        return apiClient.deleteMachine(appName: appName, machineId: machineId, token: token)
     }
 }

@@ -50,10 +50,9 @@ class AppStateManager: ObservableObject {
     }
     
     func removeMachine(_ machineId: String) {
-        Logger.log("Removing machine: \(machineId)", category: .system)
+        Logger.log("Removing machine from local state: \(machineId)", category: .system)
         
         machines.removeAll { $0.id == machineId }
-        SessionManager.shared.removeSession(machineId: machineId)
         
         // Update selection if needed
         if selectedMachineId == machineId {
@@ -62,6 +61,11 @@ class AppStateManager: ObservableObject {
                 SessionManager.shared.setActiveSession(newId)
             }
         }
+    }
+    
+    func deleteMachine(_ machineId: String) {
+        Logger.log("Initiating machine deletion: \(machineId)", category: .system)
+        SessionManager.shared.deleteMachine(machineId: machineId)
     }
     
     func clearAllMachines() {

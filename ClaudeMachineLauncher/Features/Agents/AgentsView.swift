@@ -105,7 +105,7 @@ struct AgentsView: View {
                             }
                         },
                         onRemove: {
-                            appState.removeMachine(machine.id)
+                            appState.deleteMachine(machine.id)
                         }
                     )
                 }

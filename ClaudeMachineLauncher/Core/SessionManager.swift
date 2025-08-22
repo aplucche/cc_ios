@@ -414,6 +414,52 @@ class SessionManager: ObservableObject {
             }
         }
     }
+    
+    func deleteMachine(machineId: String) {
+        guard let session = activeSessions[machineId] else {
+            Logger.log("No session found for machine: \(machineId)", category: .system)
+            return
+        }
+        
+        loadingMachines.insert(machineId)
+        Logger.log("Deleting machine: \(machineId)", category: .network)
+        
+        Task {
+            do {
+                let appName = extractAppName(from: session.url)
+                
+                // First stop/suspend the machine if it's running
+                if session.isConnected {
+                    await MainActor.run {
+                        self.disconnectSession(machineId: machineId)
+                    }
+                }
+                
+                // Delete the machine from Fly.io
+                try await flyService.deleteMachine(
+                    appName: appName,
+                    machineId: machineId,
+                    token: session.authToken
+                )
+                .asyncValue()
+                
+                Logger.log("✅ Machine deleted successfully: \(machineId)", category: .network)
+                
+                // Remove from local state
+                await MainActor.run {
+                    self.removeSession(machineId: machineId)
+                    AppStateManager.shared.removeMachine(machineId)
+                }
+                
+            } catch {
+                Logger.log("Failed to delete machine: \(error.localizedDescription)", category: .network)
+            }
+            
+            await MainActor.run {
+                self.loadingMachines.remove(machineId)
+            }
+        }
+    }
 }
 
 enum SessionError: LocalizedError {

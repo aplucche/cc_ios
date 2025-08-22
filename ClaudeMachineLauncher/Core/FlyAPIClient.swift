@@ -339,6 +339,26 @@ class FlyAPIClient {
         .map { _ in () }
         .eraseToAnyPublisher()
     }
+    
+    func deleteMachine(appName: String, machineId: String, token: String) -> AnyPublisher<Void, APIError> {
+        Logger.log("Deleting machine: \(machineId) for app: \(appName)", category: .network)
+        
+        guard let url = URL(string: "\(baseURL)/apps/\(appName)/machines/\(machineId)") else {
+            Logger.log("Invalid URL for deleting machine: \(machineId)", category: .network)
+            return Fail(error: APIError.invalidURL)
+                .eraseToAnyPublisher()
+        }
+        
+        return performRequest(
+            url: url,
+            method: "DELETE",
+            token: token,
+            responseType: EmptyResponse.self,
+            operationName: "Machine delete"
+        )
+        .map { _ in () }
+        .eraseToAnyPublisher()
+    }
 }
 
 // Helper struct for API calls that don't return data
