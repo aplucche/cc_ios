@@ -174,6 +174,14 @@ class MachineStateManager: ObservableObject {
     func performAction(_ action: MachineAction, on machineId: String) {
         switch action {
         case .activate:
+            // Suspend current active machine before activating new one
+            if let currentActiveId = activeMachineId, 
+               currentActiveId != machineId,
+               let currentState = uiStates[currentActiveId],
+               currentState.flyState == .started {
+                Logger.log("Suspending current active machine \(currentActiveId) before activating \(machineId)", category: .system)
+                suspendMachine(currentActiveId)
+            }
             setActiveMachine(machineId)
             startMachine(machineId)
         case .pause:
@@ -307,6 +315,14 @@ class MachineStateManager: ObservableObject {
         setOperation(machineId, .suspending)
         disconnectFromMachine(machineId)
         
+        // Fallback: Clear stuck operation after 15 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
+            if let current = self.uiStates[machineId], current.operation == .suspending {
+                Logger.log("Suspend operation timeout for \(machineId), clearing operation", category: .system)
+                self.clearOperation(machineId)
+            }
+        }
+        
         let appName = SettingsViewModel.shared.defaultAppName
         let token = SettingsViewModel.shared.flyAPIToken
         
@@ -320,7 +336,11 @@ class MachineStateManager: ObservableObject {
                     }
                 },
                 receiveValue: { [weak self] _ in
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    Logger.log("Suspend API call completed for \(machineId), refreshing state", category: .system)
+                    // Refresh immediately, then again after delay to ensure state is updated
+                    self?.refreshMachine(machineId)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        Logger.log("Secondary refresh for suspend operation: \(machineId)", category: .system)
                         self?.refreshMachine(machineId)
                     }
                 }
@@ -429,6 +449,14 @@ class MachineStateManager: ObservableObject {
                 self.refreshMachine(machine.id)
             }
         }
+        
+        // Also handle case where machine has an operation but API shows a stable state
+        // This can happen if suspend completed but we still show "Suspending..." operation
+        if let currentOperation = current?.operation,
+           (newState == .stopped || newState == .suspended || newState == .started) {
+            Logger.log("Machine \(machine.id) reached stable state (\(newState)) while operation (\(currentOperation)) was pending, clearing operation", category: .system)
+            // State is stable, clear any pending operation
+        }
     }
     
     private func updateMachines(_ newMachines: [FlyMachine]) {
@@ -436,8 +464,20 @@ class MachineStateManager: ObservableObject {
             updateMachine(machine)
         }
         
-        if activeMachineId == nil, let firstMachine = newMachines.first {
-            activeMachineId = firstMachine.id
+        // Auto-select machine on startup - prefer started machines for seamless UX
+        if activeMachineId == nil && !newMachines.isEmpty {
+            // Try to find a started machine first
+            let startedMachine = newMachines.first { FlyMachineState(from: $0.state) == .started }
+            let selectedMachine = startedMachine ?? newMachines.first!
+            
+            Logger.log("Auto-selecting machine on startup: \(selectedMachine.name) (state: \(selectedMachine.state))", category: .system)
+            activeMachineId = selectedMachine.id
+            
+            // Auto-connect if the selected machine is already started
+            if FlyMachineState(from: selectedMachine.state) == .started {
+                Logger.log("Auto-connecting to started machine: \(selectedMachine.id)", category: .system)
+                connectToMachine(selectedMachine.id)
+            }
         }
     }
     

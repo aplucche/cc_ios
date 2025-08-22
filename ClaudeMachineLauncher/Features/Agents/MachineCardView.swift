@@ -123,7 +123,9 @@ struct PrimaryActionButton: View {
                         .buttonStyle(.borderedProminent)
                         
                 case .none:
-                    Button("Starting") {}
+                    // Show appropriate text based on current operation or state
+                    let buttonText = isLoading ? statusText : "Ready"
+                    Button(buttonText) {}
                         .font(.system(size: 12, weight: .medium))
                         .frame(minWidth: 70, maxWidth: 90, minHeight: 28)
                         .buttonStyle(.bordered)
