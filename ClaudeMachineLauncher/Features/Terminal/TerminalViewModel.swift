@@ -87,9 +87,22 @@ class TerminalViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] state in
                 Logger.log("TerminalViewModel connection state for \(machineId): \(state)", category: .ui)
-                if case .failed(let error) = state {
+                switch state {
+                case .failed(let error):
                     self?.errorMessage = error.localizedDescription
-                } else {
+                case .connected:
+                    self?.errorMessage = nil
+                    // Trigger terminal refresh by sending resize (causes SIGWINCH)
+                    // This refreshes the prompt and any running applications without disrupting them
+                    Task {
+                        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 second delay
+                        
+                        // Send resize with standard terminal size to trigger SIGWINCH
+                        let sizeMessage = "{\"type\":\"resize\",\"rows\":24,\"cols\":80}"
+                        try? await self?.sendInput(sizeMessage)
+                        Logger.log("Sent terminal refresh resize to wake up suspended session", category: .ui)
+                    }
+                default:
                     self?.errorMessage = nil
                 }
             }
