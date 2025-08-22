@@ -347,16 +347,31 @@ struct MachineRowView: View {
         return ("No Repository", false)
     }
     
-    private var loadingText: String {
+    // Simplified status text combining state and connection
+    private var statusText: String {
         switch machine.state.lowercased() {
+        case "started":
+            return isConnected ? "Running" : "Connecting..."
         case "starting":
             return "Starting..."
         case "stopped", "suspended":
-            return "Starting..."
-        case "started":
-            return "Suspending..."
+            return "Suspended"
         default:
-            return "Processing..."
+            return machine.state.capitalized
+        }
+    }
+    
+    // Simplified status color
+    private var statusColor: Color {
+        switch machine.state.lowercased() {
+        case "started":
+            return isConnected ? .green : .orange
+        case "starting":
+            return .orange
+        case "stopped", "suspended":
+            return .gray
+        default:
+            return .gray
         }
     }
     
@@ -379,14 +394,8 @@ struct MachineRowView: View {
                         
                         Text(repositoryInfo.name)
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(isSelected ? .blue : .primary)
+                            .foregroundColor(.primary)
                             .lineLimit(1)
-                        
-                        if isSelected {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.blue)
-                        }
                     }
                     
                     // Machine name with better hierarchy
@@ -395,34 +404,35 @@ struct MachineRowView: View {
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                     
-                    // Status indicator with refined design (no machine ID to reduce clutter)
+                    // Simplified status - combines machine state + connection
                     HStack(spacing: 4) {
                         Circle()
-                            .fill(stateColor)
+                            .fill(statusColor)
                             .frame(width: 6, height: 6)
-                        Text(stateDisplayText)
+                        Text(statusText)
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(.secondary)
                         Spacer()
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
-                    .background(stateColor.opacity(0.15))
+                    .background(statusColor.opacity(0.15))
                     .cornerRadius(6)
                 }
                 
                 Spacer()
                 
-                // Action buttons section
-                VStack(spacing: 8) {
-                    // Primary action button with refined styling
+                // Simplified action buttons: Button1 | Button2
+                HStack(spacing: 8) {
+                    // Button 1: Primary action
                     if sessionManager.loadingMachines.contains(machine.id) {
+                        // Loading state - show spinner
                         Button(action: {}) {
                             HStack(spacing: 4) {
                                 ProgressView()
                                     .scaleEffect(0.7)
                                     .tint(.white)
-                                Text(loadingText)
+                                Text(statusText)
                                     .font(.system(size: 12, weight: .medium))
                                     .lineLimit(1)
                             }
@@ -431,74 +441,53 @@ struct MachineRowView: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(true)
                     } else {
-                        if machine.state.lowercased() == "starting" {
-                            Button("Starting") {}
-                                .font(.system(size: 12, weight: .medium))
-                                .frame(minWidth: 70, maxWidth: 90, minHeight: 28, maxHeight: 28)
-                                .buttonStyle(.bordered)
-                                .disabled(true)
-                        } else if isSelected {
-                            Button("Suspend") {
+                        switch machine.state.lowercased() {
+                        case "started":
+                            // Running machine - pause button
+                            Button(action: {
                                 sessionManager.suspendMachine(machineId: machine.id)
+                            }) {
+                                Image(systemName: "pause.fill")
+                                    .font(.system(size: 12, weight: .medium))
                             }
-                            .font(.system(size: 12, weight: .medium))
-                            .frame(minWidth: 70, maxWidth: 90, minHeight: 28, maxHeight: 28)
+                            .frame(width: 32, height: 28)
                             .buttonStyle(.bordered)
                             .tint(.orange)
-                        } else {
-                            Button("Use") {
-                                if machine.state.lowercased() == "stopped" || machine.state.lowercased() == "suspended" {
-                                    sessionManager.startMachine(machineId: machine.id)
-                                }
+                            
+                        case "stopped", "suspended":
+                            // Inactive machine - activate button
+                            Button("Activate") {
+                                sessionManager.startMachine(machineId: machine.id)
                                 onSelect()
                             }
                             .font(.system(size: 12, weight: .semibold))
                             .frame(minWidth: 70, maxWidth: 90, minHeight: 28, maxHeight: 28)
                             .buttonStyle(.borderedProminent)
+                            
+                        default:
+                            // Starting state - disabled button
+                            Button("Starting") {}
+                                .font(.system(size: 12, weight: .medium))
+                                .frame(minWidth: 70, maxWidth: 90, minHeight: 28, maxHeight: 28)
+                                .buttonStyle(.bordered)
+                                .disabled(true)
                         }
                     }
                     
-                    // Remove button with refined styling
-                    Button(action: onRemove) {
-                        Image(systemName: "trash.fill")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.red)
-                            .frame(width: 24, height: 24)
-                            .background(Color.red.opacity(0.1))
-                            .cornerRadius(5)
+                    // Button 2: Delete (only for suspended/stopped machines)
+                    if machine.state.lowercased() == "stopped" || machine.state.lowercased() == "suspended" {
+                        if !sessionManager.loadingMachines.contains(machine.id) {
+                            Button(action: onRemove) {
+                                Image(systemName: "trash.fill")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(.red)
+                            }
+                            .frame(width: 32, height: 28)
+                            .buttonStyle(.bordered)
+                            .tint(.red)
+                        }
                     }
                 }
-            }
-            
-            // Connection status indicator (refined)
-            if isSelected {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(isConnected ? Color.green : Color.orange)
-                        .frame(width: 4, height: 4)
-                    
-                    Text(isConnected ? "Terminal Connected" : "Connecting...")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.secondary)
-                    
-                    Spacer()
-                    
-                    if isConnected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 12))
-                            .foregroundColor(.green)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(isConnected ? Color.green.opacity(0.05) : Color.orange.opacity(0.05))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(isConnected ? Color.green.opacity(0.2) : Color.orange.opacity(0.2), lineWidth: 0.5)
-                        )
-                )
             }
         }
         .padding(16)
@@ -507,50 +496,10 @@ struct MachineRowView: View {
                 .fill(Color(.systemBackground))
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
-                        .stroke(
-                            isSelected ? Color.blue.opacity(0.3) : Color(.separator).opacity(0.2), 
-                            lineWidth: isSelected ? 1.5 : 0.5
-                        )
+                        .stroke(Color(.separator).opacity(0.2), lineWidth: 0.5)
                 )
-                .shadow(
-                    color: isSelected ? Color.blue.opacity(0.15) : Color.black.opacity(0.05), 
-                    radius: isSelected ? 8 : 4, 
-                    x: 0, 
-                    y: isSelected ? 4 : 2
-                )
+                .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
         )
-        .scaleEffect(isSelected ? 1.02 : 1.0)
-        .animation(.easeInOut(duration: 0.2), value: isSelected)
-    }
-    
-    private var stateColor: Color {
-        switch machine.state.lowercased() {
-        case "started":
-            return .green
-        case "starting":
-            return .orange
-        case "stopped":
-            return .red
-        case "suspended":
-            return .yellow
-        default:
-            return .gray
-        }
-    }
-    
-    private var stateDisplayText: String {
-        switch machine.state.lowercased() {
-        case "started":
-            return "Running"
-        case "starting":
-            return "Starting"
-        case "stopped":
-            return "Stopped"
-        case "suspended":
-            return "Suspended"
-        default:
-            return machine.state.capitalized
-        }
     }
 }
 
