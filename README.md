@@ -6,13 +6,18 @@ iOS app for launching Fly.io machines and connecting via terminal.
 
 The app launches Fly.io machines using the REST API and provides terminal access through WebSocket connections. Core functionality is working with recent improvements to terminal session management and UI responsiveness.
 
-## Quick Start
 
-```bash
-make ios-build    # Build iOS app
-make ios-test     # Run tests
-make help         # See all commands
-```
+___
+### VM Launcher
+<img src="static/launcher_img.png" width="300">
+
+___
+### Terminal
+![Terminal]()
+<img src="static/terminal_img.png" width="300">
+
+
+
 
 ## What It Does
 
