@@ -13,7 +13,6 @@ ___
 
 ___
 ### Terminal
-![Terminal]()
 <img src="static/terminal_img.png" width="300">
 
 
